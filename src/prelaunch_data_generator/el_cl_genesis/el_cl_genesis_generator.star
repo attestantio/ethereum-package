@@ -23,6 +23,7 @@ def generate_el_cl_genesis_data(
     latest_block,
     global_tolerations=[],
     global_node_selectors={},
+    additional_validators_artifact=None,
 ):
     files = {}
     shadowfork_file = ""
@@ -67,10 +68,21 @@ def generate_el_cl_genesis_data(
 
     files[GENESIS_VALUES_PATH] = genesis_generation_config_artifact_name
 
+    if additional_validators_artifact != None:
+        files["/additional-validators"] = additional_validators_artifact
+
+    # Build the genesis run command; conditionally export CL_ADDITIONAL_VALIDATORS
+    genesis_run_cmd = "cp /opt/values.env /config/values.env"
+    if additional_validators_artifact != None:
+        genesis_run_cmd += (
+            " && export CL_ADDITIONAL_VALIDATORS=/additional-validators/validators.txt"
+        )
+    genesis_run_cmd += " && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed"
+
     genesis = plan.run_sh(
         name="run-generate-genesis",
         description="Creating genesis",
-        run="cp /opt/values.env /config/values.env && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed",
+        run=genesis_run_cmd,
         image=image,
         files=files,
         store=[

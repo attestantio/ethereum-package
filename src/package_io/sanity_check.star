@@ -77,6 +77,9 @@ PARTICIPANT_CATEGORIES = {
         "vc_beacon_node_indices",
         "checkpoint_sync_enabled",
         "skip_start",
+        "dirk_image",
+        "dirk_peer_count",
+        "dirk_signing_threshold",
     ],
 }
 

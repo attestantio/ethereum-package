@@ -10,6 +10,7 @@ nimbus = import_module("./nimbus.star")
 prysm = import_module("./prysm.star")
 teku = import_module("./teku.star")
 vero = import_module("./vero.star")
+vouch = import_module("./vouch.star")
 vc_shared = import_module("./shared.star")
 
 
@@ -40,6 +41,7 @@ def get_vc_config(
     extra_files_artifacts,
     tempo_otlp_grpc_url=None,
     vc_binary_artifact=None,
+    dirk_context=None,
 ):
     if node_keystore_files == None:
         return None
@@ -202,6 +204,28 @@ def get_vc_config(
             beacon_http_urls=beacon_http_urls,
             cl_context=cl_context,
             remote_signer_context=remote_signer_context,
+            full_name=full_name,
+            tolerations=tolerations,
+            node_selectors=node_selectors,
+            port_publisher=port_publisher,
+            vc_index=vc_index,
+            extra_files_artifacts=extra_files_artifacts,
+            vc_binary_artifact=vc_binary_artifact,
+        )
+    elif vc_type == constants.VC_TYPE.vouch:
+        if dirk_context == None:
+            fail("Vouch requires Dirk to be configured")
+        if keymanager_enabled:
+            fail("Vouch VC doesn't support the Keymanager API")
+        config = vouch.get_config(
+            plan=plan,
+            participant=participant,
+            el_cl_genesis_data=launcher.el_cl_genesis_data,
+            image=image,
+            global_log_level=global_log_level,
+            beacon_http_urls=beacon_http_urls,
+            cl_context=cl_context,
+            dirk_context=dirk_context,
             full_name=full_name,
             tolerations=tolerations,
             node_selectors=node_selectors,

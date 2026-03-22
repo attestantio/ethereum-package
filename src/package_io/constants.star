@@ -28,11 +28,14 @@ VC_TYPE = struct(
     prysm="prysm",
     teku="teku",
     vero="vero",
+    vouch="vouch",
     grandine="grandine",
     consensoor="consensoor",
 )
 
 REMOTE_SIGNER_TYPE = struct(web3signer="web3signer")
+
+DEFAULT_ETHDO_IMAGE = "wealdtech/ethdo:1.37.4"
 
 GLOBAL_LOG_LEVEL = struct(
     info="info",
@@ -348,6 +351,7 @@ CLIENT_LANGUAGES = {
     "grandine": "rust",
     # Validator Clients (VC) - inherit from CL clients
     "vero": "python",
+    "vouch": "go",
     # Remote Signers
     "web3signer": "java",
 }

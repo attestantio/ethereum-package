@@ -1,0 +1,15 @@
+participants:
+  - el_type: geth
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse:v6.0.1
+    vc_type: vouch
+    vc_image: attestant/vouch:1.13.0-alpha.2
+    use_separate_vc: true
+    validator_count: 128
+    dirk_peer_count: 3
+    dirk_signing_threshold: 2
+network_params:
+  preset: mainnet
+  num_validator_keys_per_node: 128
+  electra_fork_epoch: 999999999
+  fulu_fork_epoch: 999999999

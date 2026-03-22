@@ -58,6 +58,9 @@ def launch(
 
     if network_params.preregistered_validator_count == 0:
         for participant in args_with_right_defaults.participants:
+            # Skip vouch participants — their validators come from DKG, not mnemonic
+            if participant.vc_type == constants.VC_TYPE.vouch:
+                continue
             total_number_of_validator_keys += participant.validator_count
 
     plan.print("Generating EL CL data")
