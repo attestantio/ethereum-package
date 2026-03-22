@@ -46,6 +46,7 @@ DEFAULT_VC_IMAGES = {
     "teku": "consensys/teku:latest",
     "grandine": "sifrai/grandine:stable",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -57,6 +58,7 @@ DEFAULT_VC_IMAGES_MINIMAL = {
     "teku": "ethpandaops/teku:master",
     "grandine": "ethpandaops/grandine:develop-minimal",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -569,6 +571,9 @@ def input_parser(plan, input_args):
                 remote_signer_max_cpu=participant["remote_signer_max_cpu"],
                 remote_signer_min_mem=participant["remote_signer_min_mem"],
                 remote_signer_max_mem=participant["remote_signer_max_mem"],
+                dirk_image=participant["dirk_image"],
+                dirk_peer_count=participant["dirk_peer_count"],
+                dirk_signing_threshold=participant["dirk_signing_threshold"],
                 validator_count=participant["validator_count"],
                 tolerations=participant["tolerations"],
                 node_selectors=participant["node_selectors"],
@@ -1644,6 +1649,9 @@ def default_participant():
         "remote_signer_max_cpu": 0,
         "remote_signer_min_mem": 0,
         "remote_signer_max_mem": 0,
+        "dirk_image": "attestant/dirk:1.2.1",
+        "dirk_peer_count": 3,
+        "dirk_signing_threshold": 2,
         "validator_count": None,
         "node_selectors": {},
         "tolerations": [],

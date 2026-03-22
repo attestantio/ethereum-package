@@ -34,6 +34,11 @@ blobber_launcher = import_module("./blobber/blobber_launcher.star")
 cl_context_module = import_module("./cl/cl_context.star")
 bootnodoor_launcher = import_module("./bootnodoor/bootnodoor_launcher.star")
 
+dirk_launcher = import_module("./dirk/dirk_launcher.star")
+dirk_certs = import_module("./dirk/certs.star")
+dirk_dkg = import_module("./dirk/dkg.star")
+dirk_context_module = import_module("./dirk/dirk_context.star")
+
 
 def launch_participant_network(
     plan,
@@ -56,6 +61,105 @@ def launch_participant_network(
     total_number_of_validator_keys = 0
     latest_block = ""
     global_other_index = 0
+
+    # Phase 0: DKG setup (if vouch participants exist) — must happen before genesis
+    dirk_ctx = None
+    dkg_validators_artifact = None
+    has_vouch_participant = False
+    vouch_validator_count = 0
+    for participant in args_with_right_defaults.participants:
+        if participant.vc_type == constants.VC_TYPE.vouch:
+            has_vouch_participant = True
+            vouch_validator_count += participant.validator_count
+
+    if has_vouch_participant:
+        plan.print("Setting up Dirk cluster and DKG before genesis generation")
+        # Collect vouch participant info for Dirk setup
+        vouch_participants = []
+        for index, participant in enumerate(args_with_right_defaults.participants):
+            if participant.vc_type == constants.VC_TYPE.vouch:
+                vouch_participants.append(participant)
+
+        # Use the first vouch participant's dirk config for cluster settings
+        first_vouch = vouch_participants[0]
+        dirk_peer_count = first_vouch.dirk_peer_count
+        dirk_signing_threshold = first_vouch.dirk_signing_threshold
+        dirk_image = first_vouch.dirk_image
+
+        # Validate Dirk cluster parameters
+        if dirk_peer_count < 1:
+            fail("dirk_peer_count must be at least 1, got {0}".format(dirk_peer_count))
+        if dirk_signing_threshold < 1:
+            fail("dirk_signing_threshold must be at least 1, got {0}".format(dirk_signing_threshold))
+        if dirk_signing_threshold > dirk_peer_count:
+            fail("dirk_signing_threshold ({0}) cannot exceed dirk_peer_count ({1})".format(
+                dirk_signing_threshold, dirk_peer_count,
+            ))
+
+        # Warn if vouch participants have inconsistent Dirk cluster settings
+        for vp in vouch_participants[1:]:
+            if vp.dirk_peer_count != dirk_peer_count or vp.dirk_signing_threshold != dirk_signing_threshold or vp.dirk_image != dirk_image:
+                plan.print("WARNING: vouch participants have inconsistent Dirk settings; using first vouch participant's config (peer_count={0}, threshold={1}, image={2})".format(
+                    dirk_peer_count, dirk_signing_threshold, dirk_image,
+                ))
+                break
+
+        # Generate Dirk service names
+        dirk_service_names = ["dirk-{0}".format(i + 1) for i in range(dirk_peer_count)]
+
+        # Generate certificates for Dirk cluster
+        cert_result = dirk_certs.generate_certs(
+            plan,
+            dirk_service_names,
+        )
+
+        # Launch Dirk cluster with empty distributed wallets (no keystores)
+        vouch_client_name = "vouch-client"
+        wallet_name = "DistributedWallet"
+        dirk_service_names_result = dirk_launcher.launch_dirk_cluster(
+            plan,
+            dirk_image=dirk_image,
+            peer_count=dirk_peer_count,
+            signing_threshold=dirk_signing_threshold,
+            cert_result=cert_result,
+            vouch_client_name=vouch_client_name,
+            tolerations=global_tolerations,
+            node_selectors=global_node_selectors,
+        )
+
+        # Run DKG ceremony to create distributed validator accounts
+        dkg_result = dirk_dkg.run_dkg_ceremony(
+            plan,
+            dirk_service_names=dirk_service_names_result,
+            cert_result=cert_result,
+            validator_count=vouch_validator_count,
+            signing_threshold=dirk_signing_threshold,
+            peer_count=dirk_peer_count,
+            wallet_name=wallet_name,
+        )
+
+        # Extract composite public keys into a validators file for genesis
+        dkg_validators_artifact = dirk_dkg.extract_dkg_validators_file(
+            plan,
+            dirk_service_names=dirk_service_names_result,
+            cert_result=cert_result,
+            validator_count=vouch_validator_count,
+            wallet_name=wallet_name,
+        )
+
+        # Create Dirk context for vouch participants
+        dirk_endpoints = ["{0}:{1}".format(name, dirk_launcher.DIRK_GRPC_PORT_NUM) for name in dirk_service_names]
+        dirk_ctx = dirk_context_module.new_dirk_context(
+            endpoints=dirk_endpoints,
+            ca_cert_artifact=cert_result.ca_cert,
+            client_cert_artifact=cert_result.vouch_client_cert,
+            client_key_artifact=cert_result.vouch_client_key,
+            wallet_name=wallet_name,
+            threshold=dirk_signing_threshold,
+            peer_count=dirk_peer_count,
+        )
+
+    # Phase 1: Genesis generation
     if (
         network_params.network == constants.NETWORK_NAME.kurtosis
         or constants.NETWORK_NAME.shadowfork in network_params.network
@@ -101,6 +205,7 @@ def launch_participant_network(
             latest_block.files_artifacts[0] if latest_block != "" else "",
             global_tolerations,
             global_node_selectors,
+            additional_validators_artifact=dkg_validators_artifact,
         )
     elif network_params.network == constants.NETWORK_NAME.ephemery:
         # We are running an ephemery network
@@ -326,6 +431,7 @@ def launch_participant_network(
 
     vc_service_configs = {}
     vc_service_info = {}
+
     for index, participant in enumerate(args_with_right_defaults.participants):
         el_type = participant.el_type
         cl_type = participant.cl_type
@@ -549,6 +655,7 @@ def launch_participant_network(
             extra_files_artifacts=extra_files_artifacts,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
+            dirk_context=dirk_ctx if vc_type == constants.VC_TYPE.vouch else None,
         )
         if vc_service_config == None:
             continue
