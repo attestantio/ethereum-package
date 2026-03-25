@@ -72,7 +72,7 @@ def run_dkg_ceremony(
         files={
             "/certs": ethdo_certs,
         },
-        wait="300s",
+        wait="600s",
     )
 
     return struct(
@@ -175,7 +175,7 @@ def extract_dkg_validators_file(
         store=[
             StoreSpec(src="/out/", name="dkg-validators-file"),
         ],
-        wait="300s",
+        wait="600s",
     )
 
     return result.files_artifacts[0]

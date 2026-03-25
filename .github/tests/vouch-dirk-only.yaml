@@ -2,43 +2,28 @@ participants:
   - el_type: geth
     cl_type: lighthouse
     cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
-  - el_type: geth
-    cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
-  - el_type: geth
-    cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
-  - el_type: geth
-    cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
     vc_type: vouch
     vc_image: vouch:patched
     use_separate_vc: true
-    validator_count: 128
+    validator_count: 512
     dirk_peer_count: 3
     dirk_signing_threshold: 2
+    vc_beacon_node_indices: [0, 1, 2, 3]
   - el_type: geth
     cl_type: lighthouse
     cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
+    validator_count: 0
   - el_type: geth
     cl_type: lighthouse
     cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
+    validator_count: 0
   - el_type: geth
     cl_type: lighthouse
     cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
-  - el_type: geth
-    cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
-    validator_count: 512
+    validator_count: 0
 network_params:
   preset: mainnet
-  seconds_per_slot: 6
+  seconds_per_slot: 12
   num_validator_keys_per_node: 512
   electra_fork_epoch: 999999999
   fulu_fork_epoch: 999999999
