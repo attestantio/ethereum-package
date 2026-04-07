@@ -94,3 +94,9 @@ binaries
 
 # Claude file
 CLAUDE.md
+
+# Local plan/task tracking
+plan/
+plan.md
+TASKS.md
+prompt_build.md

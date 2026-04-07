@@ -3,7 +3,8 @@ participants:
     cl_type: lighthouse
     cl_image: sigp/lighthouse:v6.0.1
     vc_type: vouch
-    vc_image: vouch:patched
+    vc_image: vouch:local
+    dirk_image: dirk:local
     use_separate_vc: true
     validator_count: 512
     dirk_peer_count: 3

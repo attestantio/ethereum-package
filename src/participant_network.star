@@ -80,8 +80,8 @@ def launch_participant_network(
             # Validate multiinstance style
             if participant.vouch_multiinstance_style not in _valid_multiinstance_styles:
                 fail(
-                    "Vouch participant #{0} has invalid vouch_multiinstance_style "
-                    "'{1}'. Valid values: {2}".format(
+                    ("Vouch participant #{0} has invalid vouch_multiinstance_style " +
+                    "'{1}'. Valid values: {2}").format(
                         index + 1,
                         participant.vouch_multiinstance_style,
                         ", ".join(["'" + s + "'" for s in _valid_multiinstance_styles if s != ""]),
@@ -93,8 +93,8 @@ def launch_participant_network(
             has_count = participant.vouch_account_count != None
             if has_start != has_count:
                 fail(
-                    "Vouch participant #{0}: vouch_account_start and "
-                    "vouch_account_count must both be specified together.".format(
+                    ("Vouch participant #{0}: vouch_account_start and " +
+                    "vouch_account_count must both be specified together.").format(
                         index + 1
                     )
                 )
@@ -111,9 +111,9 @@ def launch_participant_network(
                 vouch_account_offset += participant.validator_count
             else:
                 fail(
-                    "Vouch participant #{0} has validator_count=0 but no explicit "
-                    "vouch_account_start/vouch_account_count. Passive Vouch instances "
-                    "must specify their account range.".format(index + 1)
+                    ("Vouch participant #{0} has validator_count=0 but no explicit " +
+                    "vouch_account_start/vouch_account_count. Passive Vouch instances " +
+                    "must specify their account range.").format(index + 1)
                 )
 
     if has_vouch_participant:
