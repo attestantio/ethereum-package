@@ -42,8 +42,10 @@ def get_vc_config(
     tempo_otlp_grpc_url=None,
     vc_binary_artifact=None,
     dirk_context=None,
+    vouch_account_start=None,
+    vouch_account_count=None,
 ):
-    if node_keystore_files == None:
+    if node_keystore_files == None and vc_type != constants.VC_TYPE.vouch:
         return None
 
     tolerations = shared_utils.get_tolerations(
@@ -233,6 +235,8 @@ def get_vc_config(
             vc_index=vc_index,
             extra_files_artifacts=extra_files_artifacts,
             vc_binary_artifact=vc_binary_artifact,
+            vouch_account_start=vouch_account_start,
+            vouch_account_count=vouch_account_count,
         )
     elif vc_type == constants.VC_TYPE.grandine:
         fail("Grandine VC is not yet supported")

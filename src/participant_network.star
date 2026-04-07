@@ -67,18 +67,57 @@ def launch_participant_network(
     dkg_validators_artifact = None
     has_vouch_participant = False
     vouch_validator_count = 0
-    for participant in args_with_right_defaults.participants:
+    vouch_participants = []
+    vouch_account_offset = 0
+    vouch_account_ranges = {}
+    _valid_multiinstance_styles = ["", "static-delay"]
+    for index, participant in enumerate(args_with_right_defaults.participants):
         if participant.vc_type == constants.VC_TYPE.vouch:
             has_vouch_participant = True
             vouch_validator_count += participant.validator_count
+            vouch_participants.append(participant)
+
+            # Validate multiinstance style
+            if participant.vouch_multiinstance_style not in _valid_multiinstance_styles:
+                fail(
+                    "Vouch participant #{0} has invalid vouch_multiinstance_style "
+                    "'{1}'. Valid values: {2}".format(
+                        index + 1,
+                        participant.vouch_multiinstance_style,
+                        ", ".join(["'" + s + "'" for s in _valid_multiinstance_styles if s != ""]),
+                    )
+                )
+
+            # Validate and compute account ranges
+            has_start = participant.vouch_account_start != None
+            has_count = participant.vouch_account_count != None
+            if has_start != has_count:
+                fail(
+                    "Vouch participant #{0}: vouch_account_start and "
+                    "vouch_account_count must both be specified together.".format(
+                        index + 1
+                    )
+                )
+            if has_start and has_count:
+                vouch_account_ranges[index] = struct(
+                    start=participant.vouch_account_start,
+                    count=participant.vouch_account_count,
+                )
+            elif participant.validator_count > 0:
+                vouch_account_ranges[index] = struct(
+                    start=vouch_account_offset,
+                    count=participant.validator_count,
+                )
+                vouch_account_offset += participant.validator_count
+            else:
+                fail(
+                    "Vouch participant #{0} has validator_count=0 but no explicit "
+                    "vouch_account_start/vouch_account_count. Passive Vouch instances "
+                    "must specify their account range.".format(index + 1)
+                )
 
     if has_vouch_participant:
         plan.print("Setting up Dirk cluster and DKG before genesis generation")
-        # Collect vouch participant info for Dirk setup
-        vouch_participants = []
-        for index, participant in enumerate(args_with_right_defaults.participants):
-            if participant.vc_type == constants.VC_TYPE.vouch:
-                vouch_participants.append(participant)
 
         # Use the first vouch participant's dirk config for cluster settings
         first_vouch = vouch_participants[0]
@@ -656,6 +695,8 @@ def launch_participant_network(
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
             dirk_context=dirk_ctx if vc_type == constants.VC_TYPE.vouch else None,
+            vouch_account_start=vouch_account_ranges[index].start if index in vouch_account_ranges else None,
+            vouch_account_count=vouch_account_ranges[index].count if index in vouch_account_ranges else None,
         )
         if vc_service_config == None:
             continue

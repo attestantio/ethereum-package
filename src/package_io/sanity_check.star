@@ -80,6 +80,11 @@ PARTICIPANT_CATEGORIES = {
         "dirk_image",
         "dirk_peer_count",
         "dirk_signing_threshold",
+        "vouch_multiinstance_style",
+        "vouch_multiinstance_attester_delay",
+        "vouch_multiinstance_proposer_delay",
+        "vouch_account_start",
+        "vouch_account_count",
     ],
 }
 

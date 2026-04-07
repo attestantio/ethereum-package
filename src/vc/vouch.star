@@ -33,6 +33,8 @@ def get_config(
     vc_index,
     extra_files_artifacts,
     vc_binary_artifact=None,
+    vouch_account_start=None,
+    vouch_account_count=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
         participant.vc_log_level, global_log_level, VERBOSITY_LEVELS
@@ -48,6 +50,28 @@ def get_config(
     for url in beacon_http_urls:
         beacon_node_addresses_yaml += "  - '{0}'\n".format(url)
 
+    # Build the accounts list YAML
+    accounts_yaml = ""
+    if vouch_account_start != None and vouch_account_count != None and vouch_account_count > 0:
+        for i in range(vouch_account_start, vouch_account_start + vouch_account_count):
+            accounts_yaml += "      - '{0}/{1}'\n".format(dirk_context.wallet_name, i)
+    else:
+        accounts_yaml += "      - '{0}'\n".format(dirk_context.wallet_name)
+
+    # Build the multiinstance YAML block (if configured)
+    multiinstance_yaml = ""
+    if participant.vouch_multiinstance_style != "":
+        multiinstance_yaml = """multiinstance:
+  style: '{0}'
+  {0}:
+    attester-delay: '{1}'
+    proposer-delay: '{2}'
+""".format(
+            participant.vouch_multiinstance_style,
+            participant.vouch_multiinstance_attester_delay,
+            participant.vouch_multiinstance_proposer_delay,
+        )
+
     # Build the vouch.yml config file content
     vouch_config_template = """log-level: '{0}'
 beacon-node-addresses:
@@ -59,8 +83,7 @@ accountmanager:
     client-key: 'file://{3}/client.key'
     ca-cert: 'file://{3}/ca.crt'
     accounts:
-      - '{4}'
-    timeout: '30s'
+{4}    timeout: '30s'
 blockrelay:
   fallback-fee-recipient: '{5}'
   fallback-gas-limit: 30000000
@@ -70,15 +93,16 @@ metrics:
 graffiti:
   static:
     value: '{7}'
-""".format(
+{8}""".format(
         log_level,
         beacon_node_addresses_yaml.rstrip("\n"),
         dirk_endpoints_yaml,
         VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE,
-        dirk_context.wallet_name,
+        accounts_yaml.rstrip("\n"),
         constants.VALIDATING_REWARDS_ACCOUNT,
         vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
         full_name,
+        multiinstance_yaml,
     )
 
     # Create the config file artifact using render_templates
