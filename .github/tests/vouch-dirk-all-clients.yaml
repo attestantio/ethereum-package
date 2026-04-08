@@ -1,5 +1,5 @@
 participants:
-  # Vouch 1 (active, accounts 0-63) — lighthouse/geth
+  # Vouch 1 (active, accounts 0-63) — lighthouse/geth — creates Cluster A
   - el_type: geth
     cl_type: lighthouse
     cl_extra_params: ['--subscribe-all-subnets']
@@ -7,15 +7,16 @@ participants:
     vc_image: vouch:local
     use_separate_vc: true
     validator_count: 64
-    dirk_peer_count: 3
-    dirk_signing_threshold: 2
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: a
     dirk_image: dirk:local
     vouch_multiinstance_style: 'static-delay'
     vouch_multiinstance_attester_delay: '0s'
     vouch_multiinstance_proposer_delay: '0s'
     vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
 
-  # Vouch 2 (passive/standby, shares accounts 0-63) — teku/nethermind
+  # Vouch 2 (passive/standby, shares accounts 0-63) — teku/nethermind — joins Cluster A
   - el_type: nethermind
     cl_type: teku
     cl_extra_params: ['--p2p-subscribe-all-subnets-enabled=true']
@@ -23,6 +24,7 @@ participants:
     vc_image: vouch:local
     use_separate_vc: true
     validator_count: 0
+    dirk_cluster_id: a
     vouch_multiinstance_style: 'static-delay'
     vouch_multiinstance_attester_delay: '1s'
     vouch_multiinstance_proposer_delay: '2s'
@@ -30,7 +32,7 @@ participants:
     vouch_account_count: 64
     vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
 
-  # Vouch 3 (separate account range 64-127, same Dirk cluster) — prysm/geth
+  # Vouch 3 (independent account range 64-127) — prysm/geth — creates Cluster B
   - el_type: geth
     cl_type: prysm
     cl_extra_params: ['--subscribe-all-subnets=true']
@@ -38,8 +40,9 @@ participants:
     vc_image: vouch:local
     use_separate_vc: true
     validator_count: 64
-    dirk_peer_count: 3
-    dirk_signing_threshold: 2
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: b
     dirk_image: dirk:local
     vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
 
@@ -53,7 +56,7 @@ participants:
     cl_type: nimbus
     validator_count: 0
   - el_type: nethermind
-    cl_type: grandine
+    cl_type: teku
     validator_count: 0
   - el_type: erigon
     cl_type: lighthouse

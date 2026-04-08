@@ -574,9 +574,14 @@ def input_parser(plan, input_args):
                 dirk_image=participant["dirk_image"],
                 dirk_peer_count=participant["dirk_peer_count"],
                 dirk_signing_threshold=participant["dirk_signing_threshold"],
+                dirk_cluster_id=participant["dirk_cluster_id"],
                 vouch_multiinstance_style=participant["vouch_multiinstance_style"],
-                vouch_multiinstance_attester_delay=participant["vouch_multiinstance_attester_delay"],
-                vouch_multiinstance_proposer_delay=participant["vouch_multiinstance_proposer_delay"],
+                vouch_multiinstance_attester_delay=participant[
+                    "vouch_multiinstance_attester_delay"
+                ],
+                vouch_multiinstance_proposer_delay=participant[
+                    "vouch_multiinstance_proposer_delay"
+                ],
                 vouch_account_start=participant["vouch_account_start"],
                 vouch_account_count=participant["vouch_account_count"],
                 validator_count=participant["validator_count"],
@@ -1657,6 +1662,7 @@ def default_participant():
         "dirk_image": "attestant/dirk:1.2.1",
         "dirk_peer_count": 3,
         "dirk_signing_threshold": 2,
+        "dirk_cluster_id": None,
         "vouch_multiinstance_style": "",
         "vouch_multiinstance_attester_delay": "0s",
         "vouch_multiinstance_proposer_delay": "0s",

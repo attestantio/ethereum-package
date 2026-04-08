@@ -64,6 +64,7 @@ def launch_dirk_cluster(
     vouch_client_name,
     tolerations,
     node_selectors,
+    cluster_prefix="dirk",
 ):
     """Launch N Dirk instances as a distributed key management cluster.
 
@@ -76,16 +77,20 @@ def launch_dirk_cluster(
         vouch_client_name: CN of the Vouch client certificate.
         tolerations: Kubernetes tolerations.
         node_selectors: Kubernetes node selectors.
+        cluster_prefix: Prefix for service names (e.g. "dirk-a" → "dirk-a-1").
 
     Returns:
         A list of Dirk service names.
     """
-    dirk_service_names = ["dirk-{0}".format(i) for i in range(1, peer_count + 1)]
+    dirk_service_names = [
+        "{0}-{1}".format(cluster_prefix, i) for i in range(1, peer_count + 1)
+    ]
 
     # Build the peers section (self-reference required even for single node)
     peer_lines = []
     for i in range(1, peer_count + 1):
-        peer_lines.append("  {0}: dirk-{0}:{1}".format(i, DIRK_GRPC_PORT_NUM))
+        service_name = "{0}-{1}".format(cluster_prefix, i)
+        peer_lines.append("  {0}: {1}:{2}".format(i, service_name, DIRK_GRPC_PORT_NUM))
     peer_entries = "\n".join(peer_lines)
 
     # Build the permissions section — grant both vouch and ethdo clients access
@@ -98,11 +103,11 @@ def launch_dirk_cluster(
     permissions = "\n".join(permission_lines)
 
     # Create wallet artifacts for each instance using ethdo
-    wallet_artifacts = _create_wallet_artifacts(plan, peer_count)
+    wallet_artifacts = _create_wallet_artifacts(plan, peer_count, cluster_prefix)
 
     # Render config and launch each Dirk instance
     for i in range(1, peer_count + 1):
-        service_name = "dirk-{0}".format(i)
+        service_name = "{0}-{1}".format(cluster_prefix, i)
 
         # Render the config file for this instance
         config_template_data = {
@@ -118,7 +123,7 @@ def launch_dirk_cluster(
                     data=config_template_data,
                 ),
             },
-            "dirk-config-{0}".format(i),
+            "{0}-config-{1}".format(cluster_prefix, i),
         )
 
         # Prepare the cert files: the server cert artifact contains files named
@@ -153,7 +158,7 @@ def launch_dirk_cluster(
     return dirk_service_names
 
 
-def _create_wallet_artifacts(plan, peer_count):
+def _create_wallet_artifacts(plan, peer_count, cluster_prefix="dirk"):
     """Create wallet directories for each Dirk instance using ethdo.
 
     Creates an empty distributed wallet that will be populated by the
@@ -183,13 +188,13 @@ def _create_wallet_artifacts(plan, peer_count):
         store_specs.append(
             StoreSpec(
                 src="/tmp/wallets-{0}/".format(i),
-                name="dirk-wallet-{0}".format(i),
+                name="{0}-wallet-{1}".format(cluster_prefix, i),
             )
         )
 
     result = plan.run_sh(
-        name="create-dirk-wallets",
-        description="Creating wallets for Dirk instances",
+        name="create-{0}-wallets".format(cluster_prefix),
+        description="Creating wallets for {0} instances".format(cluster_prefix),
         run="\n".join(script_lines),
         image=constants.DEFAULT_ETHDO_IMAGE,
         store=store_specs,
