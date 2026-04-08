@@ -44,9 +44,11 @@ participants:
     vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
 
   # CL-only peers (no validators, for client diversity)
+  # One must be a supernode for Fulu PeerDAS data availability
   - el_type: nethermind
     cl_type: lodestar
     validator_count: 0
+    supernode: true
   - el_type: geth
     cl_type: nimbus
     validator_count: 0
@@ -68,6 +70,11 @@ additional_services:
   - prometheus_grafana
   - dora
   - assertoor
+
+port_publisher:
+  additional_services:
+    enabled: true
+    public_port_start: 9000
 
 assertoor_params:
   run_stability_check: true
