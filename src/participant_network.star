@@ -65,19 +65,18 @@ def launch_participant_network(
     # Phase 0: DKG setup (if vouch participants exist) — must happen before genesis
     dkg_validators_artifact = None
     has_vouch_participant = False
-    vouch_validator_count = 0
     vouch_account_offset = 0
     vouch_account_ranges = {}
     _valid_multiinstance_styles = ["", "static-delay"]
 
     # Pass 1: Identify clusters and validate vouch participants
-    # cluster_defs maps cluster_id -> struct(participants, validator_count, dirk_peer_count, dirk_signing_threshold, dirk_image, account_start)
+    # cluster_defs maps cluster_id -> struct(dirk_peer_count, dirk_signing_threshold, dirk_image, validator_count, account_start)
     cluster_defs = {}
     # Maps participant index -> cluster_id
     participant_cluster_map = {}
     # Auto-naming counter for clusters without explicit dirk_cluster_id
-    _auto_cluster_names = "abcdefghijklmnopqrstuvwxyz"
-    _auto_cluster_index = 0
+    auto_cluster_names = "abcdefghijklmnopqrstuvwxyz"
+    auto_cluster_index = 0
 
     for index, participant in enumerate(args_with_right_defaults.participants):
         if participant.vc_type == constants.VC_TYPE.vouch:
@@ -104,6 +103,19 @@ def launch_participant_network(
 
             # Determine cluster membership
             cluster_id = participant.dirk_cluster_id
+
+            # Validate cluster_id contains only safe characters (used in
+            # shell commands and service names via plan.run_sh).
+            if cluster_id != None:
+                for c in cluster_id.elems():
+                    if c not in "abcdefghijklmnopqrstuvwxyz0123456789":
+                        fail(
+                            (
+                                "dirk_cluster_id '{0}' contains invalid character '{1}'. "
+                                + "Only lowercase alphanumeric characters are allowed."
+                            ).format(cluster_id, c)
+                        )
+
             is_cluster_creator = (
                 participant.dirk_peer_count > 0 and participant.validator_count > 0
             )
@@ -111,8 +123,15 @@ def launch_participant_network(
             if is_cluster_creator:
                 # This participant creates a new cluster
                 if cluster_id == None:
-                    cluster_id = _auto_cluster_names[_auto_cluster_index]
-                    _auto_cluster_index += 1
+                    if auto_cluster_index >= len(auto_cluster_names):
+                        fail(
+                            (
+                                "Vouch participant #{0}: too many auto-named clusters "
+                                + "(max {1}). Use explicit dirk_cluster_id values."
+                            ).format(index + 1, len(auto_cluster_names))
+                        )
+                    cluster_id = auto_cluster_names[auto_cluster_index]
+                    auto_cluster_index += 1
                 if cluster_id in cluster_defs:
                     fail(
                         (
@@ -128,7 +147,6 @@ def launch_participant_network(
                     validator_count=participant.validator_count,
                     account_start=vouch_account_offset,
                 )
-                vouch_validator_count += participant.validator_count
 
                 # Compute account range for this participant
                 vouch_account_ranges[index] = struct(
@@ -223,13 +241,17 @@ def launch_participant_network(
                     )
                 )
 
-            # Generate Dirk service names for this cluster
+            # Generate Dirk service names and certificates for this cluster
+            vouch_client_name = "vouch-client"
+            wallet_name = "DistributedWallet"
+
+            # launch_dirk_cluster computes service names internally;
+            # we need them before launch for cert generation.
             dirk_service_names = [
                 "{0}-{1}".format(cluster_prefix, i + 1)
                 for i in range(cdef.dirk_peer_count)
             ]
 
-            # Generate certificates for this cluster
             cert_result = dirk_certs.generate_certs(
                 plan,
                 dirk_service_names,
@@ -237,9 +259,7 @@ def launch_participant_network(
             )
 
             # Launch Dirk cluster
-            vouch_client_name = "vouch-client"
-            wallet_name = "DistributedWallet"
-            dirk_service_names_result = dirk_launcher.launch_dirk_cluster(
+            dirk_service_names = dirk_launcher.launch_dirk_cluster(
                 plan,
                 dirk_image=cdef.dirk_image,
                 peer_count=cdef.dirk_peer_count,
@@ -252,9 +272,9 @@ def launch_participant_network(
             )
 
             # Run DKG ceremony
-            dkg_result = dirk_dkg.run_dkg_ceremony(
+            dirk_dkg.run_dkg_ceremony(
                 plan,
-                dirk_service_names=dirk_service_names_result,
+                dirk_service_names=dirk_service_names,
                 cert_result=cert_result,
                 validator_count=cdef.validator_count,
                 signing_threshold=cdef.dirk_signing_threshold,
@@ -267,7 +287,7 @@ def launch_participant_network(
             # Extract composite public keys
             validators_artifact = dirk_dkg.extract_dkg_validators_file(
                 plan,
-                dirk_service_names=dirk_service_names_result,
+                dirk_service_names=dirk_service_names,
                 cert_result=cert_result,
                 validator_count=cdef.validator_count,
                 wallet_name=wallet_name,
@@ -305,6 +325,8 @@ def launch_participant_network(
             for i, artifact in enumerate(cluster_validator_artifacts):
                 mount = "/cluster-{0}".format(i)
                 file_mounts[mount] = artifact
+                # Skip the single header line ("# DKG validator pubkeys for genesis")
+                # written by extract_dkg_validators_file.
                 cat_lines.append(
                     "tail -n +2 {0}/validators.txt >> /out/validators.txt".format(mount)
                 )

@@ -43,6 +43,7 @@ stores:
 peers:
 {{ .PeerEntries }}
 process:
+  # NOTE: Hardcoded passphrases — acceptable for ephemeral devnets only.
   generation-passphrase: secret
   generation-timeout: 120s
 unlocker:

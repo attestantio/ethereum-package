@@ -33,7 +33,7 @@ def run_dkg_ceremony(
         A struct with validator_count and wallet_name for downstream use.
     """
     suffix = "-{0}".format(cluster_id) if cluster_id else ""
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, suffix)
+    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -57,6 +57,7 @@ def run_dkg_ceremony(
         "    --account={0}/$i \\".format(wallet_name),
         "    --signing-threshold={0} \\".format(signing_threshold),
         "    --participants={0} \\".format(peer_count),
+        # NOTE: Hardcoded passphrase — acceptable for ephemeral devnets only.
         '    --passphrase=secret --allow-weak-passphrases || {{ echo "ERROR: failed to create account {0}/$i"; exit 1; }}'.format(
             wallet_name
         ),
@@ -117,7 +118,7 @@ def extract_dkg_validators_file(
         A file artifact containing validators.txt.
     """
     suffix = "-{0}".format(cluster_id) if cluster_id else ""
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, suffix)
+    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -195,20 +196,21 @@ def extract_dkg_validators_file(
     return result.files_artifacts[0]
 
 
-def _prepare_ethdo_certs(plan, cert_result, suffix=""):
+def _prepare_ethdo_certs(plan, cert_result, cluster_id=""):
     """Assemble ethdo client certs and CA cert into a single directory artifact.
 
     Args:
         plan: The Kurtosis plan.
         cert_result: Return value from certs.generate_certs().
-        suffix: Optional suffix for unique step/artifact names (e.g. "-a").
+        cluster_id: Optional cluster identifier for unique step/artifact names.
 
     Returns a file artifact containing ca.crt, ethdo.crt, and ethdo.key.
     """
+    suffix = "-{0}".format(cluster_id) if cluster_id else ""
     result = plan.run_sh(
         name="prepare-ethdo-certs{0}".format(suffix),
         description="Preparing ethdo client certificates{0}".format(
-            " for cluster {0}".format(suffix[1:]) if suffix else ""
+            " for cluster {0}".format(cluster_id) if cluster_id else ""
         ),
         run="\n".join(
             [
