@@ -52,7 +52,11 @@ def get_config(
 
     # Build the accounts list YAML
     accounts_yaml = ""
-    if vouch_account_start != None and vouch_account_count != None and vouch_account_count > 0:
+    if (
+        vouch_account_start != None
+        and vouch_account_count != None
+        and vouch_account_count > 0
+    ):
         for i in range(vouch_account_start, vouch_account_start + vouch_account_count):
             accounts_yaml += "      - '{0}/{1}'\n".format(dirk_context.wallet_name, i)
     else:
@@ -73,6 +77,8 @@ def get_config(
         )
 
     # Build the vouch.yml config file content
+    # NOTE: {2} (dirk_endpoints_yaml) and {4} (accounts_yaml) must keep their
+    # trailing \n — the next template line continues without a separator.
     vouch_config_template = """log-level: '{0}'
 beacon-node-addresses:
 {1}
@@ -98,7 +104,7 @@ graffiti:
         beacon_node_addresses_yaml.rstrip("\n"),
         dirk_endpoints_yaml,
         VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE,
-        accounts_yaml.rstrip("\n"),
+        accounts_yaml,
         constants.VALIDATING_REWARDS_ACCOUNT,
         vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
         full_name,

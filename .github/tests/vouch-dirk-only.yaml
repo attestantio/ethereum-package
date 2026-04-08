@@ -1,7 +1,6 @@
 participants:
   - el_type: geth
     cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
     vc_type: vouch
     vc_image: vouch:local
     dirk_image: dirk:local
@@ -12,15 +11,12 @@ participants:
     vc_beacon_node_indices: [0, 1, 2, 3]
   - el_type: geth
     cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
     validator_count: 0
   - el_type: geth
     cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
     validator_count: 0
   - el_type: geth
     cl_type: lighthouse
-    cl_image: sigp/lighthouse:v6.0.1
     validator_count: 0
 network_params:
   preset: mainnet
