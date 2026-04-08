@@ -23,7 +23,7 @@ network_params:
   seconds_per_slot: 12
   num_validator_keys_per_node: 512
   electra_fork_epoch: 0
-  fulu_fork_epoch: 18446744073709551615
+  fulu_fork_epoch: 0
 additional_services:
   - prometheus_grafana
   - dora
