@@ -39,6 +39,14 @@ kurtosis run . --enclave vouch-dirk-devnet --image-download always \
   --args-file .github/tests/vouch-dirk-all-clients.yaml
 ```
 
+## Pitfalls
+
+- **Tempo `grafana/tempo:latest` is broken** (v2.10+ requires Kafka). The default image is pinned to `grafana/tempo:2.7.2` in `input_parser.star`. Do NOT change to `:latest`.
+- **Beacon node separation**: Different Vouch clusters should use different `vc_beacon_node_indices` to simulate realistic operator setups. Passive HA instances share the same indices as their active counterpart.
+- **Active Vouch with `attester-delay: 0s`** may fail to get beacon block headers because no block exists yet at slot start. If you see persistent "Failed to obtain beacon block header" on the active instance, use a non-zero delay (1s minimum). The passive instance takes over correctly via HA failover.
+- **Dirk "Denied by rules" at epoch 0** is expected — slashing protection correctly prevents re-signing at `targetEpoch=0`. This is NOT a bug.
+- **Trace export errors** (`name resolver error: produced zero addresses`) mean Tempo DNS isn't resolving yet. These are transient during startup. If they persist, check `kurtosis service logs <enclave> tempo` for Tempo startup failures.
+
 ## Monitor
 
 ```bash

@@ -121,14 +121,20 @@ Slow spans indicate bottlenecks (network latency to Dirk, rules evaluation, thre
 | Error | Meaning | Action |
 |-------|---------|--------|
 | "BLOCK_ERROR_ALREADY_KNOWN" | Normal — multinode submitter sends to all CLs, some already have the block via gossip | Ignore |
+| "Not enough signatures: 0 signed, N denied" | Dirk denied all nodes — another Vouch instance already signed for this slot | Normal HA behavior when passive takes over |
 | "Not enough components" | Dirk threshold signing failed — fewer than t nodes responded | Check Dirk node health |
-| "Multiple requests for same key" | Dirk rejected batch with duplicate pubkeys | Fixed by Phase 6 batch splitting — rebuild vouch:local |
+| "Multiple requests for same key" | Dirk rejected batch with duplicate pubkeys | Fixed by batch splitting — rebuild vouch:local |
+| "Failed to obtain beacon block header before timeout" | Multi-instance header strategy timed out — all CL nodes slow or block not yet propagated | Check if active Vouch has 0s delay (known timing issue); HA passive takes over |
+| "Failed to obtain beacon block header; activating proposer" | Multi-instance fallback: header timeout triggered proposer activation | Expected when active instance can't see headers; proposals may still be denied by Dirk if passive already signed |
 | "All services operational" then silence | Normal — Vouch at INFO doesn't log individual duties | Check Prometheus metrics |
+| "job already exists" for sync committee aggregation | Scheduler race — two attempts to schedule the same job | Transient; sync committee signing still works |
 
 ## Common Dirk Errors
 
 | Error | Meaning | Action |
 |-------|---------|--------|
+| "Denied by rules" + "Request target epoch equal to or lower than previous signed target epoch" | Slashing protection at epoch 0 — correct behavior, NOT a bug | Ignore at epoch 0 |
+| "Denied by rules" + "Request slot equal to or lower than previous signed slot" | Another Vouch already signed a proposal for this slot | Normal HA behavior |
 | "failed to obtain lock for account" | Two signing requests hit the same account simultaneously | Normal under high load |
 | "pre-existing signature for slot" | Slashing protection triggered — already signed for this slot | Normal safety check |
 | "unknown account" | DKG ceremony didn't populate the expected account | Check DKG logs, verify account ranges |

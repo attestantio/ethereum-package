@@ -22,8 +22,8 @@ dirk_cluster_id: a             # Same cluster ID, no dirk_peer_count
 
 # Multi-instance HA (active/passive pairs sharing accounts)
 vouch_multiinstance_style: 'static-delay'
-vouch_multiinstance_attester_delay: '0s'   # 0s=active, 1s=passive
-vouch_multiinstance_proposer_delay: '0s'   # 0s=active, 2s=passive
+vouch_multiinstance_attester_delay: '1s'   # 1s=active, 4s=passive
+vouch_multiinstance_proposer_delay: '1s'   # 1s=active, 2s=passive
 
 # Explicit account ranges (for passive Vouch or split validators)
 vouch_account_start: 0
@@ -61,9 +61,28 @@ Cluster B (dirk_cluster_id: b)
 - Include at least one `supernode: true` participant for Fulu PeerDAS data availability
 - Non-Vouch participants with `validator_count: 0` serve as CL diversity peers
 
+## Beacon Node Separation
+
+Different Vouch clusters should use different `vc_beacon_node_indices` to simulate realistic operator setups:
+
+```yaml
+# Cluster A (active + passive share the same CL nodes)
+vc_beacon_node_indices: [0, 1, 3, 4]   # Lighthouse, Teku, Lodestar, Nimbus
+
+# Cluster B (independent CL nodes)
+vc_beacon_node_indices: [2, 5, 6]       # Prysm, Teku, Lighthouse
+```
+
+Rules:
+- Active and passive Vouch instances in the same cluster MUST share the same beacon node indices
+- Different clusters SHOULD use different subsets for realistic separation
+- Ensure each subset has client diversity (mix of CL implementations)
+- Include enough nodes for the "first" strategy to have redundancy (3+ recommended)
+
 ## Custom Config Tips
 
 - Start from an existing `.github/tests/vouch-dirk-*.yaml` and modify
 - Use `seconds_per_slot: 12` if nimbus is included (cannot run below 12 on mainnet preset)
 - Use `FAR_FUTURE_EPOCH` (`18446744073709551615`) to disable forks, not arbitrary large numbers
 - `kurtosis run . --dry-run` validates syntax and config but may timeout pulling images — pre-pull first
+- Only include config fields that differ from defaults — shorter configs are better (borrowed from kurtosis-ethereum skill)
