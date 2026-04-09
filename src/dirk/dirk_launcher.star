@@ -53,7 +53,9 @@ unlocker:
     - secret
 permissions:
 {{ .Permissions }}
-"""
+{{- if .TracingConfig }}
+{{ .TracingConfig }}
+{{- end }}"""
 
 
 def launch_dirk_cluster(
@@ -66,6 +68,7 @@ def launch_dirk_cluster(
     tolerations,
     node_selectors,
     cluster_prefix="dirk",
+    tempo_otlp_grpc_url=None,
 ):
     """Launch N Dirk instances as a distributed key management cluster.
 
@@ -79,6 +82,7 @@ def launch_dirk_cluster(
         tolerations: Kubernetes tolerations.
         node_selectors: Kubernetes node selectors.
         cluster_prefix: Prefix for service names (e.g. "dirk-a" → "dirk-a-1").
+        tempo_otlp_grpc_url: OTLP gRPC URL for Tempo tracing, or None to disable.
 
     Returns:
         A list of Dirk service names.
@@ -103,6 +107,13 @@ def launch_dirk_cluster(
     ]
     permissions = "\n".join(permission_lines)
 
+    # Build tracing config (if Tempo is available)
+    tracing_config = ""
+    if tempo_otlp_grpc_url != None:
+        # Dirk expects bare host:port for OTLP gRPC; strip http:// scheme
+        tracing_address = tempo_otlp_grpc_url.replace("http://", "")
+        tracing_config = "tracing:\n  address: '{0}'".format(tracing_address)
+
     # Create wallet artifacts for each instance using ethdo
     wallet_artifacts = _create_wallet_artifacts(plan, peer_count, cluster_prefix)
 
@@ -116,6 +127,7 @@ def launch_dirk_cluster(
             "ServiceName": service_name,
             "PeerEntries": peer_entries,
             "Permissions": permissions,
+            "TracingConfig": tracing_config,
         }
         config_artifact = plan.render_templates(
             {

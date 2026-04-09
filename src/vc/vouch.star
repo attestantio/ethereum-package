@@ -35,6 +35,7 @@ def get_config(
     vc_binary_artifact=None,
     vouch_account_start=None,
     vouch_account_count=None,
+    tempo_otlp_grpc_url=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
         participant.vc_log_level, global_log_level, VERBOSITY_LEVELS
@@ -76,6 +77,13 @@ def get_config(
             participant.vouch_multiinstance_proposer_delay,
         )
 
+    # Build the tracing YAML block (if Tempo is available)
+    tracing_yaml = ""
+    if tempo_otlp_grpc_url != None:
+        # Vouch expects bare host:port for OTLP gRPC; strip http:// scheme
+        tracing_address = tempo_otlp_grpc_url.replace("http://", "")
+        tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
+
     # Build the vouch.yml config file content
     # NOTE: {2} (dirk_endpoints_yaml) and {4} (accounts_yaml) must keep their
     # trailing \n — the next template line continues without a separator.
@@ -99,7 +107,7 @@ metrics:
 graffiti:
   static:
     value: '{7}'
-{8}""".format(
+{8}{9}""".format(
         log_level,
         beacon_node_addresses_yaml.rstrip("\n"),
         dirk_endpoints_yaml,
@@ -109,6 +117,7 @@ graffiti:
         vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
         full_name,
         multiinstance_yaml,
+        tracing_yaml,
     )
 
     # Create the config file artifact using render_templates

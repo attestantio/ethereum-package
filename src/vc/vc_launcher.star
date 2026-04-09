@@ -237,6 +237,7 @@ def get_vc_config(
             vc_binary_artifact=vc_binary_artifact,
             vouch_account_start=vouch_account_start,
             vouch_account_count=vouch_account_count,
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url,
         )
     elif vc_type == constants.VC_TYPE.grandine:
         fail("Grandine VC is not yet supported")

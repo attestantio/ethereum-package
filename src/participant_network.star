@@ -269,6 +269,7 @@ def launch_participant_network(
                 tolerations=global_tolerations,
                 node_selectors=global_node_selectors,
                 cluster_prefix=cluster_prefix,
+                tempo_otlp_grpc_url=tempo_otlp_grpc_url,
             )
 
             # Run DKG ceremony

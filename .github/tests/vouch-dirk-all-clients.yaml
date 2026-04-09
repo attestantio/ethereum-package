@@ -73,6 +73,7 @@ additional_services:
   - prometheus_grafana
   - dora
   - assertoor
+  - tempo
 
 port_publisher:
   additional_services:
