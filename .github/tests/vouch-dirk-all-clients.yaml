@@ -78,7 +78,7 @@ additional_services:
 port_publisher:
   additional_services:
     enabled: true
-    public_port_start: 9000
+    public_port_start: 9100
 
 assertoor_params:
   run_stability_check: true

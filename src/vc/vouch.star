@@ -42,37 +42,48 @@ def get_config(
     )
 
     # Build the dirk endpoints list for the config
-    dirk_endpoints_yaml = ""
-    for endpoint in dirk_context.endpoints:
-        dirk_endpoints_yaml += "      - '{0}'\n".format(endpoint)
+    dirk_endpoints_parts = [
+        "      - '{0}'".format(endpoint) for endpoint in dirk_context.endpoints
+    ]
+    dirk_endpoints_yaml = (
+        "\n".join(dirk_endpoints_parts) + "\n" if dirk_endpoints_parts else ""
+    )
 
     # Build beacon node addresses list for the config
-    beacon_node_addresses_yaml = ""
-    for url in beacon_http_urls:
-        beacon_node_addresses_yaml += "  - '{0}'\n".format(url)
+    beacon_node_addresses_parts = ["  - '{0}'".format(url) for url in beacon_http_urls]
+    beacon_node_addresses_yaml = (
+        "\n".join(beacon_node_addresses_parts) + "\n"
+        if beacon_node_addresses_parts
+        else ""
+    )
 
     # Build the accounts list YAML
-    accounts_yaml = ""
     if (
         vouch_account_start != None
         and vouch_account_count != None
         and vouch_account_count > 0
     ):
-        for i in range(vouch_account_start, vouch_account_start + vouch_account_count):
-            accounts_yaml += "      - '{0}/{1}'\n".format(dirk_context.wallet_name, i)
+        accounts_parts = [
+            "      - '{0}/{1}'".format(dirk_context.wallet_name, i)
+            for i in range(
+                vouch_account_start, vouch_account_start + vouch_account_count
+            )
+        ]
+        accounts_yaml = "\n".join(accounts_parts) + "\n"
     else:
-        accounts_yaml += "      - '{0}'\n".format(dirk_context.wallet_name)
+        accounts_yaml = "      - '{0}'\n".format(dirk_context.wallet_name)
 
     # Build the multiinstance YAML block (if configured)
     multiinstance_yaml = ""
     if participant.vouch_multiinstance_style != "":
+        style = participant.vouch_multiinstance_style
         multiinstance_yaml = """multiinstance:
   style: '{0}'
   {0}:
     attester-delay: '{1}'
     proposer-delay: '{2}'
 """.format(
-            participant.vouch_multiinstance_style,
+            style,
             participant.vouch_multiinstance_attester_delay,
             participant.vouch_multiinstance_proposer_delay,
         )
@@ -196,6 +207,7 @@ graffiti:
 
     # Binary injection - override entrypoint and cmd only when binary is provided
     if vc_binary_artifact != None:
+        vc_shared.validate_binary_filename(vc_binary_artifact.filename)
         config_args["entrypoint"] = ["sh", "-c"]
         config_args["cmd"] = [
             "cp /opt/bin/{0} /usr/local/bin/vouch && vouch ".format(

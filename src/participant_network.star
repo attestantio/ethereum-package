@@ -204,6 +204,59 @@ def launch_participant_network(
                     ).format(index + 1, cid)
                 )
 
+    # Pass 3: Detect overlapping account ranges without multiinstance coordination
+    for i in vouch_account_ranges:
+        for j in vouch_account_ranges:
+            if i >= j:
+                continue
+            r1 = vouch_account_ranges[i]
+            r2 = vouch_account_ranges[j]
+            if r1.start < r2.start + r2.count and r2.start < r1.start + r1.count:
+                # Overlap detected — only allowed with multiinstance
+                p1 = args_with_right_defaults.participants[i]
+                p2 = args_with_right_defaults.participants[j]
+                if (
+                    p1.vouch_multiinstance_style == ""
+                    or p2.vouch_multiinstance_style == ""
+                ):
+                    fail(
+                        (
+                            "Vouch participants #{0} and #{1} have overlapping account ranges "
+                            + "[{2},{3}) and [{4},{5}) but are not both configured with "
+                            + "vouch_multiinstance_style. Overlapping ranges without "
+                            + "multiinstance coordination risk double attestation."
+                        ).format(
+                            i + 1,
+                            j + 1,
+                            r1.start,
+                            r1.start + r1.count,
+                            r2.start,
+                            r2.start + r2.count,
+                        )
+                    )
+
+    # Validate account ranges are within cluster bounds
+    for index in vouch_account_ranges:
+        r = vouch_account_ranges[index]
+        cid = participant_cluster_map[index]
+        cdef = cluster_defs[cid]
+        cluster_end = cdef.account_start + cdef.validator_count
+        range_end = r.start + r.count
+        if r.count > 0 and (r.start < cdef.account_start or range_end > cluster_end):
+            fail(
+                (
+                    "Vouch participant #{0}: account range [{1},{2}) is outside "
+                    + "cluster '{3}' bounds [{4},{5})."
+                ).format(
+                    index + 1,
+                    r.start,
+                    range_end,
+                    cid,
+                    cdef.account_start,
+                    cluster_end,
+                )
+            )
+
     # Per-cluster setup: certs, launch, DKG, extract pubkeys
     cluster_dirk_contexts = {}
     cluster_validator_artifacts = []
@@ -270,6 +323,7 @@ def launch_participant_network(
                 node_selectors=global_node_selectors,
                 cluster_prefix=cluster_prefix,
                 tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+                dirk_service_names=dirk_service_names,
             )
 
             # Run DKG ceremony

@@ -69,6 +69,7 @@ def launch_dirk_cluster(
     node_selectors,
     cluster_prefix="dirk",
     tempo_otlp_grpc_url=None,
+    dirk_service_names=None,
 ):
     """Launch N Dirk instances as a distributed key management cluster.
 
@@ -87,9 +88,10 @@ def launch_dirk_cluster(
     Returns:
         A list of Dirk service names.
     """
-    dirk_service_names = [
-        "{0}-{1}".format(cluster_prefix, i) for i in range(1, peer_count + 1)
-    ]
+    if dirk_service_names == None:
+        dirk_service_names = [
+            "{0}-{1}".format(cluster_prefix, i) for i in range(1, peer_count + 1)
+        ]
 
     # Build the peers section (self-reference required even for single node)
     peer_lines = []
