@@ -26,7 +26,7 @@ participants:
     validator_count: 0
     dirk_cluster_id: a
     vouch_multiinstance_style: 'static-delay'
-    vouch_multiinstance_attester_delay: '1s'
+    vouch_multiinstance_attester_delay: '4s'
     vouch_multiinstance_proposer_delay: '2s'
     vouch_account_start: 0
     vouch_account_count: 64
