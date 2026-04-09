@@ -10,9 +10,18 @@ Deploy Ethereum devnets with Vouch + Dirk via Kurtosis (`feat/add-vouch-dirk` br
 
 ## Build
 
+Before building, ask the user which branches to use:
+- **Vouch branch** (default: `master`)
+- **Dirk branch** (default: `master`)
+
 ```bash
-docker build -t vouch:local /Users/miguel-attestant/Documents/Projects/vouch
-docker build -t dirk:local /Users/miguel-attestant/Documents/Projects/dirk
+cd /Users/miguel-attestant/Documents/Projects/vouch
+git checkout <vouch-branch>
+docker build -t vouch:local .
+
+cd /Users/miguel-attestant/Documents/Projects/dirk
+git checkout <dirk-branch>
+docker build -t dirk:local .
 ```
 
 Use `--no-cache` when switching base image versions. Images are picked up locally by Kurtosis.
@@ -38,7 +47,10 @@ kurtosis service logs vouch-dirk-devnet <service>    # logs
 curl -s http://127.0.0.1:<cl-port>/eth/v1/beacon/states/head/finality_checkpoints | jq
 ```
 
-Vouch metrics (INFO logs are silent): `vouch_attestation_mark_seconds_count`, `vouch_beaconblockproposal_mark_seconds_count`, `vouch_synccommitteemessage_mark_seconds_count` at `http://127.0.0.1:<vouch-metrics-port>/metrics`.
+Vouch at INFO does NOT log individual duty results (attestations, proposals, sync committee). After startup, silence is expected — "All services operational" then nothing. Verify signing via Prometheus counters at `http://127.0.0.1:<vouch-metrics-port>/metrics`:
+- `vouch_attestation_mark_seconds_count` — attestations submitted
+- `vouch_beaconblockproposal_mark_seconds_count` — proposals made
+- `vouch_synccommitteemessage_mark_seconds_count` — sync committee messages
 
 ## Teardown
 

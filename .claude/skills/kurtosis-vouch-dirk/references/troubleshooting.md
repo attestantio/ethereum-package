@@ -1,6 +1,7 @@
 # Vouch/Dirk Devnet Troubleshooting
 
 ## Table of Contents
+- [Devnet Verification Checklist](#devnet-verification-checklist)
 - [Finalization Timing](#finalization-timing)
 - [Querying Traces via Tempo](#querying-traces-via-tempo)
 - [Common Vouch Errors](#common-vouch-errors)
@@ -8,6 +9,23 @@
 - [Assertoor Caveats](#assertoor-caveats)
 - [CL Client Flag Differences](#cl-client-flag-differences)
 - [YAML Template Pitfalls](#yaml-template-pitfalls)
+- [Development Guide](#development-guide)
+
+## Devnet Verification Checklist
+
+Run these checks after deploying a devnet to confirm everything is healthy:
+
+| # | Criterion | How to check | Expected |
+|---|-----------|-------------|----------|
+| 1 | Vouch starts | `kurtosis service logs vouch-dirk-devnet vouch-0-0 \| head -50` | "All services operational" |
+| 2 | Dirk nodes healthy | `kurtosis service logs vouch-dirk-devnet dirk-a-1 2>&1 \| grep -i error` | 0 errors |
+| 3 | Attestations flowing | `curl -s http://127.0.0.1:<vouch-metrics-port>/metrics \| grep vouch_attestation_mark_seconds_count` | Counter incrementing |
+| 4 | Sync committee active | `curl -s http://127.0.0.1:<vouch-metrics-port>/metrics \| grep vouch_synccommitteemessage_mark_seconds_count` | Counter incrementing |
+| 5 | No batch rejections | `kurtosis service logs vouch-dirk-devnet dirk-a-1 2>&1 \| grep "Multiple requests"` | No matches |
+| 6 | Finalization (~26 min) | `curl -s http://127.0.0.1:<cl-port>/eth/v1/beacon/states/head/finality_checkpoints \| jq` | `finalized_epoch > 0` by epoch 5 |
+| 7 | Passive Vouch inactive | Check metrics for passive instance | 0 attestations, 0 proposals |
+
+**Timing**: checks 1-2 immediately after deploy, checks 3-5 after ~2 min, check 6 after ~26 min, check 7 anytime.
 
 ## Finalization Timing
 
@@ -140,3 +158,50 @@ Always check `src/cl/<client>/<client>_launcher.star` for correct syntax.
 - The `vouch.star` template embeds YAML strings via `.format()`. Parameters `{2}` (dirk_endpoints) and `{4}` (accounts) MUST keep trailing `\n` because the next template line continues without a separator.
 - Do NOT call `.rstrip("\n")` on `accounts_yaml` or `dirk_endpoints_yaml` — it breaks the YAML.
 - `beacon_node_addresses_yaml` IS correctly `.rstrip("\n")`'d because the template has a literal `\n` after `{1}`.
+
+## Development Guide
+
+### Vouch/Dirk Test and Lint Commands
+
+```bash
+# Vouch
+cd /Users/miguel-attestant/Documents/Projects/vouch
+go test ./...                    # all tests
+go test -race ./services/...     # race detection on services
+golangci-lint run                # full lint suite
+
+# Dirk
+cd /Users/miguel-attestant/Documents/Projects/dirk
+go test ./...                    # all tests
+go test -race ./rules/standard/... # race detection on rules
+golangci-lint run                # full lint suite
+```
+
+### Copyright Headers
+
+Attestant repos use `goheader` linter. Copyright year ranges MUST use spaces around the dash:
+```
+// Copyright © 2020 - 2026 Attestant Limited.
+```
+NOT `2020-2026`. The linter regex expects ` - ` (space-dash-space).
+
+### Kurtosis Lint
+
+```bash
+cd /Users/miguel-attestant/Documents/Projects/ethereum-package
+kurtosis lint .              # check formatting
+kurtosis lint . --format     # auto-fix
+```
+
+Runs `pyfound/black:23.9.1` via Docker. Requires Docker running.
+
+### Rebuild Cycle
+
+After code changes to Vouch or Dirk:
+```bash
+kurtosis enclave rm -f vouch-dirk-devnet          # tear down
+docker build -t vouch:local .                      # rebuild in vouch/dirk dir
+cd /Users/miguel-attestant/Documents/Projects/ethereum-package
+kurtosis run . --enclave vouch-dirk-devnet --image-download always \
+  --args-file .github/tests/vouch-dirk-all-clients.yaml
+```
