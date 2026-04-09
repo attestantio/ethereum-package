@@ -12,9 +12,9 @@ participants:
     dirk_cluster_id: a
     dirk_image: dirk:local
     vouch_multiinstance_style: 'static-delay'
-    vouch_multiinstance_attester_delay: '0s'
-    vouch_multiinstance_proposer_delay: '0s'
-    vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
+    vouch_multiinstance_attester_delay: '1s'
+    vouch_multiinstance_proposer_delay: '1s'
+    vc_beacon_node_indices: [0, 1, 3, 4]
 
   # Vouch 2 (passive/standby, shares accounts 0-63) — teku/nethermind — joins Cluster A
   - el_type: nethermind
@@ -30,7 +30,7 @@ participants:
     vouch_multiinstance_proposer_delay: '2s'
     vouch_account_start: 0
     vouch_account_count: 64
-    vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
+    vc_beacon_node_indices: [0, 1, 3, 4]
 
   # Vouch 3 (independent account range 64-127) — prysm/geth — creates Cluster B
   - el_type: geth
@@ -44,7 +44,7 @@ participants:
     dirk_signing_threshold: 3
     dirk_cluster_id: b
     dirk_image: dirk:local
-    vc_beacon_node_indices: [0, 1, 2, 3, 4, 5, 6]
+    vc_beacon_node_indices: [2, 5, 6]
 
   # CL-only peers (no validators, for client diversity)
   # One must be a supernode for Fulu PeerDAS data availability
