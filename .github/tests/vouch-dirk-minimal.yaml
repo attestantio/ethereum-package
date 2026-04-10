@@ -11,8 +11,6 @@ participants:
   - el_type: geth
     cl_type: lighthouse
     vc_type: vouch
-    vc_image: vouch:local
-    dirk_image: dirk:local
     use_separate_vc: true
     validator_count: 128
     dirk_peer_count: 3

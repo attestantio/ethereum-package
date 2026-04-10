@@ -4,13 +4,11 @@ participants:
     cl_type: lighthouse
     cl_extra_params: ['--subscribe-all-subnets']
     vc_type: vouch
-    vc_image: vouch:local
     use_separate_vc: true
     validator_count: 64
     dirk_peer_count: 5
     dirk_signing_threshold: 3
     dirk_cluster_id: a
-    dirk_image: dirk:local
     vouch_multiinstance_style: 'static-delay'
     vouch_multiinstance_attester_delay: '1s'
     vouch_multiinstance_proposer_delay: '1s'
@@ -21,7 +19,6 @@ participants:
     cl_type: teku
     cl_extra_params: ['--p2p-subscribe-all-subnets-enabled=true']
     vc_type: vouch
-    vc_image: vouch:local
     use_separate_vc: true
     validator_count: 0
     dirk_cluster_id: a
@@ -37,13 +34,11 @@ participants:
     cl_type: prysm
     cl_extra_params: ['--subscribe-all-subnets=true']
     vc_type: vouch
-    vc_image: vouch:local
     use_separate_vc: true
     validator_count: 64
     dirk_peer_count: 5
     dirk_signing_threshold: 3
     dirk_cluster_id: b
-    dirk_image: dirk:local
     vc_beacon_node_indices: [2, 5, 6]
 
   # CL-only peers (no validators, for client diversity)

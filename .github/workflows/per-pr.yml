@@ -35,6 +35,10 @@ jobs:
             "./.github/tests/mix-public.yaml",
             "./.github/tests/minimal.yaml",
             "./network_params.yaml"
+            # TODO: uncomment once attestantio/vouch#394 (sync committee fix) is released
+            # "./.github/tests/vouch-dirk-only.yaml",
+            # "./.github/tests/vouch-dirk-minimal.yaml",
+            # "./.github/tests/vouch-dirk-all-clients.yaml"
           ]
     runs-on: ubuntu-latest
     steps:
