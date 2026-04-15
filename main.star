@@ -1075,21 +1075,9 @@ def run(plan, args={}):
 
     if args_with_right_defaults.certmanager_test_enabled and certmanager_cluster_info:
         plan.print("Running go-certmanager integration tests")
-        vouch_service_names = []
-        for index, participant in enumerate(all_participants):
-            if participant.vc_type != constants.VC_TYPE.vouch:
-                continue
-            if participant.vc_context == None:
-                continue
-            # Skip passive HA instances — they don't attest so have no metrics
-            parsed = args_with_right_defaults.participants[index]
-            if parsed.vouch_multiinstance_attester_delay != "0s":
-                continue
-            vouch_service_names.append(participant.vc_context.service_name)
         certmanager_test.run_certmanager_tests(
             plan,
             dirk_cluster_info=certmanager_cluster_info,
-            vouch_service_names=vouch_service_names,
             beacon_service_name=all_cl_contexts[0].beacon_service_name,
             tempo_query_url=tempo_query_url,
         )

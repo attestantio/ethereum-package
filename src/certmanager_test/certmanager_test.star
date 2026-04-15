@@ -5,7 +5,6 @@ reload = import_module("./reload.star")
 def run_certmanager_tests(
     plan,
     dirk_cluster_info,
-    vouch_service_names,
     beacon_service_name,
     tempo_query_url=None,
 ):
@@ -20,12 +19,10 @@ def run_certmanager_tests(
         plan: The Kurtosis plan.
         dirk_cluster_info: Dict of cluster_id -> struct with:
             - dirk_service_names: list of Dirk service names
-            - replacement_server_certs: dict of service_name -> artifact
-            - expired_server_certs: dict of service_name -> artifact
+            - active_vouch_service_names: list of active Vouch service names
             - ca_cert_artifact: CA cert file artifact
             - client_cert_artifact: Vouch client cert artifact
             - client_key_artifact: Vouch client key artifact
-        vouch_service_names: List of Vouch service names.
         beacon_service_name: CL beacon node service name (for finalization wait).
         tempo_query_url: Tempo HTTP query URL (e.g. "http://tempo:3200"), or None.
     """
@@ -33,8 +30,11 @@ def run_certmanager_tests(
     plan.print("  go-certmanager Integration Test Suite")
     plan.print("========================================")
 
+    assertions.wait_for_finalization(plan, beacon_service_name)
+
     for cluster_id, info in dirk_cluster_info.items():
         dirk_service_names = info.dirk_service_names
+        vouch_service_names = info.active_vouch_service_names
 
         plan.print(
             "--- Cluster {0}: Phase A — SAN Identity Verification ---".format(
@@ -48,7 +48,6 @@ def run_certmanager_tests(
         plan.print(
             "--- Cluster {0}: Attestation & Signing Check ---".format(cluster_id)
         )
-        assertions.wait_for_finalization(plan, beacon_service_name)
         assertions.assert_attestations_and_signing(
             plan, vouch_service_names, dirk_service_names
         )
@@ -61,8 +60,6 @@ def run_certmanager_tests(
             plan,
             dirk_service_names=dirk_service_names,
             vouch_service_names=vouch_service_names,
-            replacement_server_certs=info.replacement_server_certs,
-            expired_server_certs=info.expired_server_certs,
             ca_cert_artifact=info.ca_cert_artifact,
             client_cert_artifact=info.client_cert_artifact,
             client_key_artifact=info.client_key_artifact,

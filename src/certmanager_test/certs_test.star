@@ -19,7 +19,7 @@ def generate_test_certs(
 
     Returns a struct matching the normal cert_result shape (ca_cert, server_certs,
     vouch_client_cert, vouch_client_key, ethdo_client_cert, ethdo_client_key)
-    plus extra fields: replacement_server_certs, expired_server_certs, ca_key.
+    plus extra fields: replacement_server_certs, expired_server_certs.
     """
     ethdo_client_name = "ethdo-client"
     prefix = "dirk-{0}".format(cluster_id) if cluster_id else "dirk"
@@ -32,12 +32,8 @@ def generate_test_certs(
     store_specs.append(
         StoreSpec(src="/certs/ca/ca.crt", name="{0}-ca-cert".format(prefix))
     )
-    # [1] CA key (needed for future cert generation if desired)
-    store_specs.append(
-        StoreSpec(src="/certs/ca/ca.key", name="{0}-ca-key".format(test_prefix))
-    )
 
-    # [2..N+1] Initial server certs (short-lived)
+    # [1..N] Initial server certs (short-lived)
     for name in dirk_service_names:
         store_specs.append(
             StoreSpec(
@@ -46,7 +42,7 @@ def generate_test_certs(
             )
         )
 
-    # [N+2..2N+1] Replacement server certs (long-lived)
+    # [N+1..2N] Replacement server certs (long-lived)
     for name in dirk_service_names:
         store_specs.append(
             StoreSpec(
@@ -55,7 +51,7 @@ def generate_test_certs(
             )
         )
 
-    # [2N+2..3N+1] Expired server certs
+    # [2N+1..3N] Expired server certs
     for name in dirk_service_names:
         store_specs.append(
             StoreSpec(
@@ -64,28 +60,28 @@ def generate_test_certs(
             )
         )
 
-    # [3N+2] vouch client cert
+    # [3N+1] vouch client cert
     store_specs.append(
         StoreSpec(
             src="/certs/clients/{0}/{0}.crt".format(vouch_client_name),
             name="{0}-vouch-client-cert".format(prefix),
         )
     )
-    # [3N+3] vouch client key
+    # [3N+2] vouch client key
     store_specs.append(
         StoreSpec(
             src="/certs/clients/{0}/{0}.key".format(vouch_client_name),
             name="{0}-vouch-client-key".format(prefix),
         )
     )
-    # [3N+4] ethdo client cert
+    # [3N+3] ethdo client cert
     store_specs.append(
         StoreSpec(
             src="/certs/clients/{0}/{0}.crt".format(ethdo_client_name),
             name="{0}-ethdo-client-cert".format(prefix),
         )
     )
-    # [3N+5] ethdo client key
+    # [3N+4] ethdo client key
     store_specs.append(
         StoreSpec(
             src="/certs/clients/{0}/{0}.key".format(ethdo_client_name),
@@ -110,22 +106,22 @@ def generate_test_certs(
     num_servers = len(dirk_service_names)
 
     # Map artifacts: indices follow store_specs order
-    # [0] = ca_cert, [1] = ca_key
-    # [2..N+1] = initial server certs
-    # [N+2..2N+1] = replacement server certs
-    # [2N+2..3N+1] = expired server certs
-    # [3N+2..3N+5] = client certs/keys
+    # [0] = ca_cert
+    # [1..N] = initial server certs
+    # [N+1..2N] = replacement server certs
+    # [2N+1..3N] = expired server certs
+    # [3N+1..3N+4] = client certs/keys
 
     server_certs = {}
     replacement_server_certs = {}
     expired_server_certs = {}
 
     for i, name in enumerate(dirk_service_names):
-        server_certs[name] = result.files_artifacts[2 + i]
-        replacement_server_certs[name] = result.files_artifacts[2 + num_servers + i]
-        expired_server_certs[name] = result.files_artifacts[2 + 2 * num_servers + i]
+        server_certs[name] = result.files_artifacts[1 + i]
+        replacement_server_certs[name] = result.files_artifacts[1 + num_servers + i]
+        expired_server_certs[name] = result.files_artifacts[1 + 2 * num_servers + i]
 
-    client_base = 2 + 3 * num_servers
+    client_base = 1 + 3 * num_servers
 
     return struct(
         # Standard cert_result fields (compatible with existing downstream code)
@@ -136,7 +132,6 @@ def generate_test_certs(
         ethdo_client_cert=result.files_artifacts[client_base + 2],
         ethdo_client_key=result.files_artifacts[client_base + 3],
         # Extra fields for certmanager testing
-        ca_key=result.files_artifacts[1],
         replacement_server_certs=replacement_server_certs,
         expired_server_certs=expired_server_certs,
     )

@@ -1,4 +1,5 @@
 dirk_launcher = import_module("../dirk/dirk_launcher.star")
+vc_shared = import_module("../vc/shared.star")
 
 ALPINE_IMAGE = "alpine:3.21"
 OPENSSL_IMAGE = "alpine/openssl:3.5.5"
@@ -88,8 +89,8 @@ def assert_attestations_and_signing(plan, vouch_service_names, dirk_service_name
             run="\n".join(
                 [
                     "set -e",
-                    'METRICS=$(wget -q -O - "http://{0}:8080/metrics")'.format(
-                        service_name
+                    'METRICS=$(wget -q -O - "http://{0}:{1}/metrics")'.format(
+                        service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
                     ),
                     'COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\')',
                     'if [ -z "$COUNT" ] || [ "$COUNT" = "0" ]; then',
@@ -132,7 +133,7 @@ def assert_attestations_and_signing(plan, vouch_service_names, dirk_service_name
         )
 
 
-def assert_cert_changed(
+def verify_cert_reachable(
     plan,
     dirk_service_names,
     ca_cert_artifact,
@@ -140,15 +141,15 @@ def assert_cert_changed(
     client_key_artifact,
     expected_description="replacement",
 ):
-    """Assert the TLS cert presented by each Dirk has changed.
+    """Verify the Dirk gRPC endpoint is serving a valid TLS certificate.
 
     Uses openssl s_client to connect and extract the cert serial and
-    end date, then logs them for verification. This provides direct
-    cryptographic proof that the cert was reloaded.
+    end date, then logs them. This confirms the endpoint is reachable
+    and serving a parseable certificate.
     """
     for service_name in dirk_service_names:
         plan.run_sh(
-            name="assert-cert-{0}-{1}".format(expected_description, service_name),
+            name="verify-cert-{0}-{1}".format(expected_description, service_name),
             description="Verifying {0} cert on {1} via openssl s_client".format(
                 expected_description, service_name
             ),
@@ -184,33 +185,6 @@ def assert_cert_changed(
         )
 
 
-def record_vouch_attestation_count(plan, vouch_service_names):
-    """Capture the current attestation counter value from each Vouch instance.
-
-    Returns a run_sh result whose output contains the counts for later comparison.
-    This is used for before/after comparison across reload phases.
-    """
-    wget_lines = ["set -e"]
-    for service_name in vouch_service_names:
-        wget_lines.extend(
-            [
-                'METRICS=$(wget -q -O - "http://{0}:8080/metrics")'.format(
-                    service_name
-                ),
-                'COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\' || echo "0")',
-                'echo "{0}=$COUNT"'.format(service_name),
-            ]
-        )
-
-    return plan.run_sh(
-        name="record-attestation-counts",
-        description="Recording current attestation counts from Vouch instances",
-        run="\n".join(wget_lines),
-        image=ALPINE_IMAGE,
-        wait=None,
-    )
-
-
 def assert_attestation_count_increased(
     plan, vouch_service_names, phase_label="post-reload"
 ):
@@ -226,8 +200,8 @@ def assert_attestation_count_increased(
             run="\n".join(
                 [
                     "set -e",
-                    'METRICS=$(wget -q -O - "http://{0}:8080/metrics")'.format(
-                        service_name
+                    'METRICS=$(wget -q -O - "http://{0}:{1}/metrics")'.format(
+                        service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
                     ),
                     'COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\')',
                     'if [ -z "$COUNT" ] || [ "$COUNT" = "0" ]; then',
@@ -246,11 +220,11 @@ def assert_attestation_count_increased(
         )
 
 
-def assert_traces_present(plan, tempo_query_url, service_name):
-    """Assert OTel traces are present in Tempo for a given service.
+def check_traces_present(plan, tempo_query_url, service_name):
+    """Check whether OTel traces are present in Tempo for a given service.
 
-    Queries Tempo's HTTP search API to verify traces from Vouch/Dirk
-    appear, including cert-loading spans.
+    Queries Tempo's HTTP search API for traces from Vouch/Dirk. This is
+    advisory and non-blocking — traces may not have propagated yet.
     """
     if tempo_query_url == None:
         plan.print(
@@ -292,7 +266,7 @@ def assert_sighup_logged(plan, dirk_service_names):
                 command=[
                     "/bin/sh",
                     "-c",
-                    'grep -q "Received SIGHUP" /tmp/dirk.log || grep -q "reloading certificates" /tmp/dirk.log',
+                    'grep -qE \'"Received SIGHUP"|"reloading certificates"\' /tmp/dirk.log',
                 ],
             ),
             acceptable_codes=[0],

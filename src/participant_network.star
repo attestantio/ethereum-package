@@ -975,6 +975,40 @@ def launch_participant_network(
         else:
             all_vc_contexts.append(None)
 
+    # Build per-cluster active Vouch service names for certmanager testing
+    if certmanager_test_enabled and certmanager_cluster_info:
+        cluster_vouch_names = {}
+        for vc_service_name in vc_service_info:
+            info = vc_service_info[vc_service_name]
+            idx = info["participant_index"]
+            parsed = args_with_right_defaults.participants[idx]
+            if parsed.vc_type != constants.VC_TYPE.vouch:
+                continue
+            if idx not in participant_cluster_map:
+                continue
+            # Skip passive HA instances — they don't attest so have no metrics
+            if parsed.vouch_multiinstance_attester_delay != "0s":
+                continue
+            cid = participant_cluster_map[idx]
+            if cid not in cluster_vouch_names:
+                cluster_vouch_names[cid] = []
+            cluster_vouch_names[cid].append(vc_service_name)
+
+        # Rebuild certmanager_cluster_info with active_vouch_service_names
+        updated_info = {}
+        for cid in certmanager_cluster_info:
+            old = certmanager_cluster_info[cid]
+            updated_info[cid] = struct(
+                dirk_service_names=old.dirk_service_names,
+                active_vouch_service_names=cluster_vouch_names.get(cid, []),
+                replacement_server_certs=old.replacement_server_certs,
+                expired_server_certs=old.expired_server_certs,
+                ca_cert_artifact=old.ca_cert_artifact,
+                client_cert_artifact=old.client_cert_artifact,
+                client_key_artifact=old.client_key_artifact,
+            )
+        certmanager_cluster_info = updated_info
+
     all_participants = []
     for index, participant in enumerate(args_with_right_defaults.participants):
         el_type = participant.el_type
