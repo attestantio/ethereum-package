@@ -298,6 +298,11 @@ def _server_cert_commands(service_name, base_dir, cert_type):
             ]
         )
 
+    # Rename to canonical names expected by Dirk
+    dir = "{0}/{1}".format(base_dir, service_name)
+    lines.append("mv {0}.crt {1}/server.crt".format(base, dir))
+    lines.append("mv {0}.key {1}/server.key".format(base, dir))
+
     return lines
 
 

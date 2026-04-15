@@ -185,36 +185,55 @@ def verify_cert_reachable(
         )
 
 
-def assert_attestation_count_increased(
-    plan, vouch_service_names, phase_label="post-reload"
+def wait_for_attestations(
+    plan, vouch_service_names, phase_label="post-reload", timeout_seconds=300
 ):
-    """Assert attestation counts are still increasing (operations continue after reload)."""
+    """Poll Vouch metrics until attestation count > 0, or timeout.
+
+    Polls every 5 seconds. Returns as soon as any successful attestation
+    is detected, avoiding fixed sleeps. Times out after timeout_seconds.
+    """
     for service_name in vouch_service_names:
-        plan.run_sh(
-            name="assert-attestations-increasing-{0}-{1}".format(
-                phase_label, service_name
+        # Build the shell script in parts: lines that need .format() for
+        # service_name/port, and lines with grep/awk escaping that must NOT
+        # use .format() (to avoid brace-escaping issues).
+        script_lines = [
+            "set -e",
+            "TIMEOUT={0}".format(timeout_seconds),
+            "INTERVAL=5",
+            "ELAPSED=0",
+            'while [ "$ELAPSED" -lt "$TIMEOUT" ]; do',
+            '  METRICS=$(wget -q -O - "http://{0}:{1}/metrics" 2>/dev/null || true)'.format(
+                service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
             ),
-            description="Verifying attestations still flowing on {0} ({1})".format(
+        ]
+        # grep/awk line — no .format() to avoid brace issues
+        script_lines.append(
+            '  COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\' || true)'
+        )
+        script_lines.extend(
+            [
+                '  if [ -n "$COUNT" ] && [ "$COUNT" != "0" ]; then',
+                '    echo "OK: {0} has $COUNT attestations ({1})"'.format(
+                    service_name, phase_label
+                ),
+                "    exit 0",
+                "  fi",
+                "  sleep $INTERVAL",
+                "  ELAPSED=$((ELAPSED + INTERVAL))",
+                "done",
+                'echo "FAIL: No successful attestations on {0} after {1}s ({2})"'.format(
+                    service_name, timeout_seconds, phase_label
+                ),
+                "exit 1",
+            ]
+        )
+        plan.run_sh(
+            name="wait-attestations-{0}-{1}".format(phase_label, service_name),
+            description="Waiting for attestations on {0} ({1})".format(
                 service_name, phase_label
             ),
-            run="\n".join(
-                [
-                    "set -e",
-                    'METRICS=$(wget -q -O - "http://{0}:{1}/metrics")'.format(
-                        service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
-                    ),
-                    'COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\')',
-                    'if [ -z "$COUNT" ] || [ "$COUNT" = "0" ]; then',
-                    '  echo "FAIL: No successful attestations on {0} after {1}"'.format(
-                        service_name, phase_label
-                    ),
-                    "  exit 1",
-                    "fi",
-                    'echo "OK: {0} has $COUNT attestations ({1})"'.format(
-                        service_name, phase_label
-                    ),
-                ]
-            ),
+            run="\n".join(script_lines),
             image=ALPINE_IMAGE,
             wait=None,
         )

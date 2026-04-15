@@ -1,10 +1,5 @@
 assertions = import_module("./assertions.star")
 
-# Wait ~2 epochs (2 * 32 slots * 12 seconds = 768s, but we use a shorter
-# wait since Kurtosis plan.run_sh is already sequential and attestations
-# should resume within a few slots after reload)
-EPOCH_WAIT_SECONDS = 96  # ~8 slots worth of time
-
 
 def execute_reload_test(
     plan,
@@ -103,8 +98,7 @@ def _phase_b_reload_to_replacement(
     )
 
     # 6. Wait and verify attestations continue
-    _wait_epochs(plan, 2, "phase-b-post-reload")
-    assertions.assert_attestation_count_increased(
+    assertions.wait_for_attestations(
         plan,
         vouch_service_names,
         phase_label="phase-b-replacement",
@@ -206,8 +200,7 @@ def _phase_d_recovery(
     )
 
     # 4. Wait and verify attestations resume
-    _wait_epochs(plan, 2, "phase-d-recovery")
-    assertions.assert_attestation_count_increased(
+    assertions.wait_for_attestations(
         plan,
         vouch_service_names,
         phase_label="phase-d-recovery",
@@ -225,17 +218,3 @@ def _send_sighup(plan, dirk_service_names):
             acceptable_codes=[0],
             description="Sending SIGHUP to {0}".format(service_name),
         )
-
-
-def _wait_epochs(plan, num_epochs, label):
-    """Wait for approximately num_epochs worth of time to allow attestations."""
-    wait_seconds = num_epochs * EPOCH_WAIT_SECONDS
-    plan.run_sh(
-        name="wait-{0}".format(label),
-        description="Waiting ~{0} epochs ({1}s) for attestations to flow".format(
-            num_epochs, wait_seconds
-        ),
-        run="sleep {0}".format(wait_seconds),
-        image=assertions.ALPINE_IMAGE,
-        wait=None,
-    )

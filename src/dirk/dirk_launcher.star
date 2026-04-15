@@ -147,16 +147,7 @@ def launch_dirk_cluster(
             "{0}-config-{1}".format(cluster_prefix, i),
         )
 
-        # Prepare the cert files: the server cert artifact contains files named
-        # {service_name}.crt, {service_name}.key, and ca.crt.
-        # We need to rename them to server.crt / server.key for the Dirk config.
-        # Use a run_sh to copy and rename into a clean artifact.
-        server_cert_artifact = _prepare_server_certs(
-            plan,
-            service_name,
-            cert_result.server_certs[service_name],
-            cert_result.ca_cert,
-        )
+        server_cert_artifact = cert_result.server_certs[service_name]
 
         # Assemble file mounts
         files = {
@@ -166,31 +157,14 @@ def launch_dirk_cluster(
         }
 
         # Mount replacement/expired cert artifacts for certmanager reload testing.
-        # _prepare_server_certs looks for {cert_name}.crt inside the artifact,
-        # so we pass the original service_name for file lookup but a unique
-        # label for the artifact/step name.
         if (
             replacement_server_certs != None
             and service_name in replacement_server_certs
         ):
-            replacement_artifact = _prepare_server_certs(
-                plan,
-                service_name + "-replacement",
-                replacement_server_certs[service_name],
-                cert_result.ca_cert,
-                cert_name=service_name,
-            )
-            files["/certs-replacement"] = replacement_artifact
+            files["/certs-replacement"] = replacement_server_certs[service_name]
 
         if expired_server_certs != None and service_name in expired_server_certs:
-            expired_artifact = _prepare_server_certs(
-                plan,
-                service_name + "-expired",
-                expired_server_certs[service_name],
-                cert_result.ca_cert,
-                cert_name=service_name,
-            )
-            files["/certs-expired"] = expired_artifact
+            files["/certs-expired"] = expired_server_certs[service_name]
 
         # Build service config — optionally with log-to-file entrypoint
         if log_to_file:
@@ -265,44 +239,3 @@ def _create_wallet_artifacts(plan, peer_count, cluster_prefix="dirk"):
     )
 
     return [result.files_artifacts[i] for i in range(peer_count)]
-
-
-def _prepare_server_certs(
-    plan, service_name, server_cert_artifact, ca_cert_artifact, cert_name=None
-):
-    """Rename server cert files to the canonical names Dirk expects.
-
-    The server_cert_artifact contains {cert_name}.crt, {cert_name}.key
-    (and ca.crt, .ext, .csr files). We copy the relevant ones to server.crt
-    and server.key, plus include the CA cert.
-
-    Args:
-        service_name: Used for step/artifact naming (must be unique).
-        cert_name: Name of cert files inside the artifact. Defaults to service_name.
-    """
-    if cert_name == None:
-        cert_name = service_name
-    result = plan.run_sh(
-        name="prepare-certs-{0}".format(service_name),
-        description="Preparing TLS cert files for {0}".format(service_name),
-        run="\n".join(
-            [
-                "set -e",
-                "mkdir -p /out",
-                "cp /server-cert/{0}.crt /out/server.crt".format(cert_name),
-                "cp /server-cert/{0}.key /out/server.key".format(cert_name),
-                "cp /ca-cert/ca.crt /out/ca.crt",
-            ]
-        ),
-        image="alpine:3.21",
-        files={
-            "/server-cert": server_cert_artifact,
-            "/ca-cert": ca_cert_artifact,
-        },
-        store=[
-            StoreSpec(src="/out/", name="dirk-prepared-certs-{0}".format(service_name))
-        ],
-        wait=None,
-    )
-
-    return result.files_artifacts[0]

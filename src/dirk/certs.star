@@ -142,6 +142,7 @@ def _build_cert_script(dirk_service_names, vouch_client_name, ethdo_client_name)
 def _server_cert_commands(service_name):
     """Return shell commands to generate a server certificate for a Dirk instance."""
     base = "/certs/servers/{0}/{0}".format(service_name)
+    dir = "/certs/servers/{0}".format(service_name)
     return [
         "",
         "# Server certificate for {0}".format(service_name),
@@ -155,6 +156,9 @@ def _server_cert_commands(service_name):
         "openssl x509 -req -in {0}.csr -CA /certs/ca/ca.crt -CAkey /certs/ca/ca.key -CAcreateserial -out {0}.crt -days {1} -sha256 -extfile {0}.ext".format(
             base, CERT_VALIDITY_DAYS
         ),
+        "# Rename to canonical names expected by Dirk",
+        "mv {0}.crt {1}/server.crt".format(base, dir),
+        "mv {0}.key {1}/server.key".format(base, dir),
     ]
 
 
