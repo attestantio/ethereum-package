@@ -128,6 +128,7 @@ def input_parser(plan, input_args):
     result["xatu_sentry_params"] = get_default_xatu_sentry_params()
     result["persistent"] = False
     result["parallel_keystore_generation"] = False
+    result["certmanager_test_enabled"] = False
     result["global_tolerations"] = []
     result["global_node_selectors"] = {}
     result["port_publisher"] = get_port_publisher_params("default")
@@ -921,6 +922,7 @@ def input_parser(plan, input_args):
         ethereum_metrics_exporter_enabled=result["ethereum_metrics_exporter_enabled"],
         xatu_sentry_enabled=result["xatu_sentry_enabled"],
         parallel_keystore_generation=result["parallel_keystore_generation"],
+        certmanager_test_enabled=result["certmanager_test_enabled"],
         disable_peer_scoring=result["disable_peer_scoring"],
         persistent=result["persistent"],
         xatu_sentry_params=struct(

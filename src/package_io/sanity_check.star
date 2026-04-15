@@ -519,6 +519,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "keymanager_enabled": "",
     "checkpoint_sync_enabled": "",
     "checkpoint_sync_url": "",
+    "certmanager_test_enabled": "",
 }
 
 

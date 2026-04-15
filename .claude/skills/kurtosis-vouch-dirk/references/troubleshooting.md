@@ -40,7 +40,22 @@ The Casper FFG spec skips justification at the epoch 0-to-1 transition (`current
 
 **Earliest possible finalization = epoch 4 boundary = slot 128 = ~26 min at 12s slots.**
 
-Do NOT treat delayed finalization before epoch 4 as a bug. If the chain hasn't finalized by **epoch 5 (~32 min)**, THEN investigate.
+### Cold-Start Attestation Gap
+
+In practice, Vouch+Dirk devnets with small validator sets (< 256 total) experience a "cold start" where early epochs (0-2) have reduced attestation participation. Vouch needs time to connect to beacon nodes, receive committee assignments, and complete the first Dirk signing round-trip. This means:
+
+- Epochs 0-2: participation may be below the 2/3 Casper FFG justification threshold
+- Epochs 3-4: participation stabilizes, but non-consecutive justification (e.g., epochs 1 and 4 justified, 2-3 not) prevents finalization
+- Epochs 4-5+: consecutive justification achieved, finalization follows
+
+**Real-world finalization with Vouch+Dirk: ~35 min at 12s slots (epoch 5-6 boundary).**
+
+Mitigations:
+- Use >= 128 validators per Vouch instance (256+ total) to give more margin on the 2/3 threshold
+- Set finalization wait timeouts to at least **40 minutes**
+- Do NOT treat delayed finalization before epoch 6 as a bug with small validator sets
+
+Do NOT investigate unless the chain hasn't finalized by **epoch 7 (~45 min)**.
 
 Check finalization:
 ```bash

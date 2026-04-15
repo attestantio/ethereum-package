@@ -1,0 +1,87 @@
+participants:
+  # Vouch 1 (active, accounts 0-127) — lighthouse/geth — creates Cluster A
+  - el_type: geth
+    cl_type: lighthouse
+    cl_extra_params: ['--subscribe-all-subnets']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 128
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: a
+    vouch_multiinstance_style: 'static-delay'
+    vouch_multiinstance_attester_delay: '0s'
+    vouch_multiinstance_proposer_delay: '0s'
+    vc_image: "attestant/vouch:certmanager-test"
+    dirk_image: "attestant/dirk:certmanager-test"
+    vc_beacon_node_indices: [0, 1, 3, 4]
+
+  # Vouch 2 (passive/standby, shares accounts 0-127) — teku/nethermind — joins Cluster A
+  - el_type: nethermind
+    cl_type: teku
+    cl_extra_params: ['--p2p-subscribe-all-subnets-enabled=true']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 0
+    dirk_cluster_id: a
+    vouch_multiinstance_style: 'static-delay'
+    vouch_multiinstance_attester_delay: '4s'
+    vouch_multiinstance_proposer_delay: '2s'
+    vouch_account_start: 0
+    vouch_account_count: 128
+    vc_image: "attestant/vouch:certmanager-test"
+    vc_beacon_node_indices: [0, 1, 3, 4]
+
+  # Vouch 3 (independent account range 128-255) — prysm/geth — creates Cluster B
+  - el_type: geth
+    cl_type: prysm
+    cl_extra_params: ['--subscribe-all-subnets=true']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 128
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: b
+    vc_image: "attestant/vouch:certmanager-test"
+    dirk_image: "attestant/dirk:certmanager-test"
+    vc_beacon_node_indices: [2, 5, 6]
+
+  # CL-only peers (no validators, for client diversity)
+  # One must be a supernode for Fulu PeerDAS data availability
+  - el_type: nethermind
+    cl_type: lodestar
+    validator_count: 0
+    supernode: true
+  - el_type: geth
+    cl_type: nimbus
+    validator_count: 0
+  - el_type: nethermind
+    cl_type: teku
+    validator_count: 0
+  - el_type: erigon
+    cl_type: lighthouse
+    validator_count: 0
+
+network_params:
+  preset: mainnet
+  seconds_per_slot: 12
+  num_validator_keys_per_node: 128
+  electra_fork_epoch: 0
+  fulu_fork_epoch: 0
+
+certmanager_test_enabled: true
+
+additional_services:
+  - prometheus_grafana
+  - dora
+  - assertoor
+  - tempo
+
+port_publisher:
+  additional_services:
+    enabled: true
+    public_port_start: 9100
+
+assertoor_params:
+  run_stability_check: true
+  run_block_proposal_check: true

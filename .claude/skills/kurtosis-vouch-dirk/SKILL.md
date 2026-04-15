@@ -43,9 +43,11 @@ kurtosis run . --enclave vouch-dirk-devnet --image-download always \
 
 - **Tempo `grafana/tempo:latest` is broken** (v2.10+ requires Kafka). The default image is pinned to `grafana/tempo:2.7.2` in `input_parser.star`. Do NOT change to `:latest`.
 - **Beacon node separation**: Different Vouch clusters should use different `vc_beacon_node_indices` to simulate realistic operator setups. Passive HA instances share the same indices as their active counterpart.
-- **Active Vouch with `attester-delay: 0s`** may fail to get beacon block headers because no block exists yet at slot start. If you see persistent "Failed to obtain beacon block header" on the active instance, use a non-zero delay (1s minimum). The passive instance takes over correctly via HA failover.
+- **Static-delay `0s` for active instance**: The active Vouch in an HA pair MUST use `attester-delay: 0s` and `proposer-delay: 0s`. Vouch's staticdelay code (`service.go:79`) sets `attesterActive = (delay == 0)` — any non-zero value starts the instance passive, causing a deadlock where neither instance attests at genesis. The passive/standby instance should use `4s`/`2s`.
+- **Finalization takes ~35 min on mainnet preset**: With 12s slots and 32 slots/epoch, finalization requires ~5 epochs of consistent attestation. Early epochs (0-2) have reduced participation as Vouch+Dirk stabilize. Use >= 128 validators per Vouch instance (256+ total) to ensure early-epoch justification clears the 2/3 Casper FFG threshold. Set finalization wait timeouts to at least 40 minutes.
 - **Dirk "Denied by rules" at epoch 0** is expected — slashing protection correctly prevents re-signing at `targetEpoch=0`. This is NOT a bug.
 - **Trace export errors** (`name resolver error: produced zero addresses`) mean Tempo DNS isn't resolving yet. These are transient during startup. If they persist, check `kurtosis service logs <enclave> tempo` for Tempo startup failures.
+- **Do not use a native VC alongside Vouch**: Native VCs (e.g., Lighthouse VC) use keystore-generated keys which are separate from DKG-distributed keys. Their validators show "All validators inactive" because the deposits correspond to DKG keys, not keystore keys.
 
 ## Monitor
 

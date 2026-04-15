@@ -58,6 +58,7 @@ mev_custom_flood = import_module(
 )
 broadcaster = import_module("./src/broadcaster/broadcaster.star")
 mempool_bridge = import_module("./src/mempool_bridge/mempool_bridge_launcher.star")
+certmanager_test = import_module("./src/certmanager_test/certmanager_test.star")
 assertoor = import_module("./src/assertoor/assertoor_launcher.star")
 get_prefunded_accounts = import_module(
     "./src/prefunded_accounts/get_prefunded_accounts.star"
@@ -260,6 +261,7 @@ def run(plan, args={}):
         network_id,
         osaka_time,
         shadowfork_block_height,
+        certmanager_cluster_info,
     ) = participant_network.launch_participant_network(
         plan,
         args_with_right_defaults,
@@ -1070,6 +1072,27 @@ def run(plan, args={}):
             tempo_query_url,
         )
         plan.print("Successfully launched grafana")
+
+    if args_with_right_defaults.certmanager_test_enabled and certmanager_cluster_info:
+        plan.print("Running go-certmanager integration tests")
+        vouch_service_names = []
+        for index, participant in enumerate(all_participants):
+            if participant.vc_type != constants.VC_TYPE.vouch:
+                continue
+            if participant.vc_context == None:
+                continue
+            # Skip passive HA instances — they don't attest so have no metrics
+            parsed = args_with_right_defaults.participants[index]
+            if parsed.vouch_multiinstance_attester_delay != "0s":
+                continue
+            vouch_service_names.append(participant.vc_context.service_name)
+        certmanager_test.run_certmanager_tests(
+            plan,
+            dirk_cluster_info=certmanager_cluster_info,
+            vouch_service_names=vouch_service_names,
+            beacon_service_name=all_cl_contexts[0].beacon_service_name,
+            tempo_query_url=tempo_query_url,
+        )
 
     if args_with_right_defaults.wait_for_finalization:
         plan.print("Waiting for the first finalized epoch")

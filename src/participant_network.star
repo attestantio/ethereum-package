@@ -38,6 +38,7 @@ dirk_launcher = import_module("./dirk/dirk_launcher.star")
 dirk_certs = import_module("./dirk/certs.star")
 dirk_dkg = import_module("./dirk/dkg.star")
 dirk_context_module = import_module("./dirk/dirk_context.star")
+certmanager_test_certs = import_module("./certmanager_test/certs_test.star")
 
 
 def launch_participant_network(
@@ -260,6 +261,8 @@ def launch_participant_network(
     # Per-cluster setup: certs, launch, DKG, extract pubkeys
     cluster_dirk_contexts = {}
     cluster_validator_artifacts = []
+    certmanager_test_enabled = args_with_right_defaults.certmanager_test_enabled
+    certmanager_cluster_info = {}
 
     if has_vouch_participant:
         plan.print(
@@ -305,11 +308,23 @@ def launch_participant_network(
                 for i in range(cdef.dirk_peer_count)
             ]
 
-            cert_result = dirk_certs.generate_certs(
-                plan,
-                dirk_service_names,
-                cluster_id=cluster_id,
-            )
+            replacement_server_certs = None
+            expired_server_certs = None
+
+            if certmanager_test_enabled:
+                cert_result = certmanager_test_certs.generate_test_certs(
+                    plan,
+                    dirk_service_names,
+                    cluster_id=cluster_id,
+                )
+                replacement_server_certs = cert_result.replacement_server_certs
+                expired_server_certs = cert_result.expired_server_certs
+            else:
+                cert_result = dirk_certs.generate_certs(
+                    plan,
+                    dirk_service_names,
+                    cluster_id=cluster_id,
+                )
 
             # Launch Dirk cluster
             dirk_service_names = dirk_launcher.launch_dirk_cluster(
@@ -324,6 +339,9 @@ def launch_participant_network(
                 cluster_prefix=cluster_prefix,
                 tempo_otlp_grpc_url=tempo_otlp_grpc_url,
                 dirk_service_names=dirk_service_names,
+                replacement_server_certs=replacement_server_certs,
+                expired_server_certs=expired_server_certs,
+                log_to_file=certmanager_test_enabled,
             )
 
             # Run DKG ceremony
@@ -365,6 +383,17 @@ def launch_participant_network(
                 threshold=cdef.dirk_signing_threshold,
                 peer_count=cdef.dirk_peer_count,
             )
+
+            # Collect cluster info for certmanager testing
+            if certmanager_test_enabled:
+                certmanager_cluster_info[cluster_id] = struct(
+                    dirk_service_names=dirk_service_names,
+                    replacement_server_certs=replacement_server_certs,
+                    expired_server_certs=expired_server_certs,
+                    ca_cert_artifact=cert_result.ca_cert,
+                    client_cert_artifact=cert_result.vouch_client_cert,
+                    client_key_artifact=cert_result.vouch_client_key,
+                )
 
         # Merge per-cluster validators files into one artifact for genesis
         if len(cluster_validator_artifacts) == 1:
@@ -1020,4 +1049,5 @@ def launch_participant_network(
         network_id,
         el_cl_data.osaka_time,
         el_cl_data.shadowfork_block_height,
+        certmanager_cluster_info,
     )
