@@ -285,7 +285,7 @@ def assert_sighup_logged(plan, dirk_service_names):
                 command=[
                     "/bin/sh",
                     "-c",
-                    'grep -qE \'"Received SIGHUP"|"reloading certificates"\' /tmp/dirk.log',
+                    'grep -qE "Received SIGHUP|reloading certificates" /tmp/dirk.log',
                 ],
             ),
             acceptable_codes=[0],
