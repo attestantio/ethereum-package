@@ -157,7 +157,7 @@ def verify_cert_reachable(
                 [
                     "set -e",
                     "# Connect and extract cert details",
-                    "CERT_INFO=$(echo | openssl s_client -connect {0}:{1} -CAfile /ca/ca.crt -cert /client-cert/*.crt -key /client-key/*.key 2>/dev/null | openssl x509 -noout -serial -enddate)".format(
+                    "CERT_INFO=$(echo | openssl s_client -connect {0}:{1} -alpn h2 -CAfile /ca/ca.crt -cert /client-cert/*.crt -key /client-key/*.key 2>/dev/null | openssl x509 -noout -serial -enddate)".format(
                         service_name, dirk_launcher.DIRK_GRPC_PORT_NUM
                     ),
                     'SERIAL=$(echo "$CERT_INFO" | grep serial | cut -d= -f2)',
@@ -198,7 +198,6 @@ def wait_for_attestations(
         # service_name/port, and lines with grep/awk escaping that must NOT
         # use .format() (to avoid brace-escaping issues).
         script_lines = [
-            "set -e",
             "TIMEOUT={0}".format(timeout_seconds),
             "INTERVAL=5",
             "ELAPSED=0",
