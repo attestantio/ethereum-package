@@ -50,12 +50,14 @@ def execute_reload_test(
     )
 
     # Trace assertions — fail if Tempo is enabled but has no traces.
+    # Dirk/Vouch set OTel service.name per process (not per instance), so we
+    # assert once per process type rather than per Kurtosis service.
     if tempo_query_url != None:
         plan.print("=== Asserting OTel traces in Tempo ===")
-        for service_name in dirk_service_names:
-            assertions.assert_traces_present(plan, tempo_query_url, service_name)
-        for service_name in vouch_service_names:
-            assertions.assert_traces_present(plan, tempo_query_url, service_name)
+        if len(dirk_service_names) > 0:
+            assertions.assert_traces_present(plan, tempo_query_url, "Dirk")
+        if len(vouch_service_names) > 0:
+            assertions.assert_traces_present(plan, tempo_query_url, "Vouch")
 
 
 def _phase_b_reload_to_replacement(

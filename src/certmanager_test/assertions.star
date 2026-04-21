@@ -238,34 +238,44 @@ def wait_for_attestations(
         )
 
 
-def assert_traces_present(plan, tempo_query_url, service_name):
-    """Assert that OTel traces are present in Tempo for a given service.
+def assert_traces_present(plan, tempo_query_url, otel_service_name):
+    """Assert that OTel traces are present in Tempo for the given service.
 
-    Queries Tempo's HTTP search API for traces from Vouch/Dirk. Exits 1 if
-    no traces are returned. The tempo_query_url == None short-circuit is a
-    legitimate skip when Tempo is not enabled in the config.
+    otel_service_name is the process-level OTel `service.name` attribute
+    (e.g. "Dirk", "Vouch") — NOT the Kurtosis service/container name.
+    Dirk and Vouch set `service.name` once per process; all instances of
+    Dirk share service.name="Dirk", and likewise for Vouch. Kurtosis
+    instance distinction lives in `service.instance.id` (container ID).
+
+    Exits 1 if no traces are returned. The tempo_query_url == None
+    short-circuit is a legitimate skip when Tempo is not enabled in the
+    config.
     """
     if tempo_query_url == None:
         plan.print(
-            "Skipping trace assertion for {0} - Tempo not enabled".format(service_name)
+            "Skipping trace assertion for {0} - Tempo not enabled".format(
+                otel_service_name
+            )
         )
         return
 
     plan.run_sh(
-        name="assert-traces-{0}".format(service_name),
-        description="Asserting Tempo traces for {0}".format(service_name),
+        name="assert-traces-{0}".format(otel_service_name.lower()),
+        description="Asserting Tempo traces for {0}".format(otel_service_name),
         run="\n".join(
             [
                 "set -e",
-                "# Query Tempo search API for traces from this service",
+                "# Query Tempo search API for traces from this OTel service.name",
                 'RESPONSE=$(wget -q -O - "{0}/api/search?tags=service.name%3D{1}&limit=5")'.format(
-                    tempo_query_url, service_name
+                    tempo_query_url, otel_service_name
                 ),
                 "# Require at least one trace",
                 'if echo "$RESPONSE" | grep -q "traceID"; then',
-                '  echo "OK: Found traces for {0} in Tempo"'.format(service_name),
+                '  echo "OK: Found traces for {0} in Tempo"'.format(otel_service_name),
                 "else",
-                '  echo "FAIL: No traces found for {0} in Tempo"'.format(service_name),
+                '  echo "FAIL: No traces found for {0} in Tempo"'.format(
+                    otel_service_name
+                ),
                 "  exit 1",
                 "fi",
             ]
