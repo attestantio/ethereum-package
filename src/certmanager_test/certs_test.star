@@ -2,7 +2,7 @@ OPENSSL_IMAGE = "alpine/openssl:3.5.5"
 
 CERT_VALIDITY_DAYS_LONG = 1825
 CERT_VALIDITY_DAYS_SHORT = 1  # Fallback if -not_after unsupported
-INITIAL_CERT_MINUTES = 10
+INITIAL_CERT_MINUTES = 90
 
 
 def generate_test_certs(
