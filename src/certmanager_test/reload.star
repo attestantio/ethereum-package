@@ -1,4 +1,7 @@
 assertions = import_module("./assertions.star")
+dirk_launcher = import_module("../dirk/dirk_launcher.star")
+
+DIRK_CERTMANAGER_LABELS = [("dirk", "server"), ("dirk", "client")]
 
 
 def execute_reload_test(
@@ -12,7 +15,8 @@ def execute_reload_test(
 ):
     """Execute the full SIGHUP certificate reload test cycle.
 
-    Phase B: Reload to replacement certs (good certs, verify continuity)
+    Phase B: Reload to replacement certs (good certs, verify continuity,
+             serial changes, gauges refresh)
     Phase C: Reload to expired certs (error scenario)
     Phase D: Recovery back to good replacement certs
     """
@@ -45,13 +49,13 @@ def execute_reload_test(
         client_key_artifact,
     )
 
-    # Trace assertions (non-blocking — traces may take time to propagate)
+    # Trace assertions — fail if Tempo is enabled but has no traces.
     if tempo_query_url != None:
-        plan.print("=== Checking OTel traces in Tempo ===")
+        plan.print("=== Asserting OTel traces in Tempo ===")
         for service_name in dirk_service_names:
-            assertions.check_traces_present(plan, tempo_query_url, service_name)
+            assertions.assert_traces_present(plan, tempo_query_url, service_name)
         for service_name in vouch_service_names:
-            assertions.check_traces_present(plan, tempo_query_url, service_name)
+            assertions.assert_traces_present(plan, tempo_query_url, service_name)
 
 
 def _phase_b_reload_to_replacement(
@@ -62,8 +66,25 @@ def _phase_b_reload_to_replacement(
     client_cert_artifact,
     client_key_artifact,
 ):
-    """Phase B: Swap to replacement certs, SIGHUP, verify operations continue."""
-    # 1. Copy replacement certs into the live cert directory
+    """Phase B: Swap to replacement certs, SIGHUP, verify operations continue.
+
+    Also records pre-reload cert serials per Dirk and asserts they have
+    changed after the reload, plus re-asserts the certmanager gauges have
+    valid values for the new cert (values should shift to new expiry).
+    """
+    # 1. Record pre-reload cert serial per Dirk (baseline for comparison).
+    pre_reload_serial_artifacts = {}
+    for service_name in dirk_service_names:
+        pre_reload_serial_artifacts[service_name] = assertions.record_cert_serial(
+            plan,
+            service_name,
+            ca_cert_artifact,
+            client_cert_artifact,
+            client_key_artifact,
+            tag="pre-reload",
+        )
+
+    # 2. Copy replacement certs into the live cert directory
     for service_name in dirk_service_names:
         plan.exec(
             service_name=service_name,
@@ -78,16 +99,16 @@ def _phase_b_reload_to_replacement(
             description="Copying replacement certs to {0}".format(service_name),
         )
 
-    # 2. Send SIGHUP to trigger reload (Dirk is PID 1)
+    # 3. Send SIGHUP to trigger reload (Dirk is PID 1)
     _send_sighup(plan, dirk_service_names)
 
-    # 3. Assert SIGHUP was logged
+    # 4. Assert SIGHUP was logged
     assertions.assert_sighup_logged(plan, dirk_service_names)
 
-    # 4. Assert no reload failure
+    # 5. Assert no reload failure
     assertions.assert_no_reload_failure(plan, dirk_service_names)
 
-    # 5. Verify the cert is reachable via openssl s_client
+    # 6. Verify the cert is reachable via openssl s_client
     assertions.verify_cert_reachable(
         plan,
         dirk_service_names,
@@ -97,7 +118,31 @@ def _phase_b_reload_to_replacement(
         expected_description="replacement",
     )
 
-    # 6. Wait and verify attestations continue
+    # 7. Assert the serial changed on each Dirk — proves reload actually
+    #    swapped the cert.
+    for service_name in dirk_service_names:
+        assertions.assert_cert_serial_changed(
+            plan,
+            service_name,
+            pre_reload_serial_artifacts[service_name],
+            ca_cert_artifact,
+            client_cert_artifact,
+            client_key_artifact,
+            tag="post-reload",
+        )
+
+    # 8. Re-check certmanager gauges — values should reflect the new cert's
+    #    expiry. Independent signal that reload took effect.
+    for service_name in dirk_service_names:
+        assertions.assert_certmanager_metrics(
+            plan,
+            service_name,
+            dirk_launcher.DIRK_METRICS_PORT_NUM,
+            DIRK_CERTMANAGER_LABELS,
+            tag="post-reload",
+        )
+
+    # 9. Wait and verify attestations continue
     assertions.wait_for_attestations(
         plan,
         vouch_service_names,

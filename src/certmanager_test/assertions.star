@@ -238,11 +238,12 @@ def wait_for_attestations(
         )
 
 
-def check_traces_present(plan, tempo_query_url, service_name):
-    """Check whether OTel traces are present in Tempo for a given service.
+def assert_traces_present(plan, tempo_query_url, service_name):
+    """Assert that OTel traces are present in Tempo for a given service.
 
-    Queries Tempo's HTTP search API for traces from Vouch/Dirk. This is
-    advisory and non-blocking — traces may not have propagated yet.
+    Queries Tempo's HTTP search API for traces from Vouch/Dirk. Exits 1 if
+    no traces are returned. The tempo_query_url == None short-circuit is a
+    legitimate skip when Tempo is not enabled in the config.
     """
     if tempo_query_url == None:
         plan.print(
@@ -252,7 +253,7 @@ def check_traces_present(plan, tempo_query_url, service_name):
 
     plan.run_sh(
         name="assert-traces-{0}".format(service_name),
-        description="Checking Tempo traces for {0}".format(service_name),
+        description="Asserting Tempo traces for {0}".format(service_name),
         run="\n".join(
             [
                 "set -e",
@@ -260,17 +261,202 @@ def check_traces_present(plan, tempo_query_url, service_name):
                 'RESPONSE=$(wget -q -O - "{0}/api/search?tags=service.name%3D{1}&limit=5")'.format(
                     tempo_query_url, service_name
                 ),
-                "# Check that we got at least one trace",
+                "# Require at least one trace",
                 'if echo "$RESPONSE" | grep -q "traceID"; then',
                 '  echo "OK: Found traces for {0} in Tempo"'.format(service_name),
                 "else",
-                '  echo "WARN: No traces found for {0} in Tempo (may need more time)"'.format(
-                    service_name
-                ),
+                '  echo "FAIL: No traces found for {0} in Tempo"'.format(service_name),
+                "  exit 1",
                 "fi",
             ]
         ),
         image=ALPINE_IMAGE,
+        wait=None,
+    )
+
+
+def assert_certmanager_metrics(
+    plan, service_name, metrics_port, expected_labels, tag="a"
+):
+    """Assert that certmanager_certificate_{not_after,not_before}_seconds
+    gauges are registered with the expected (name, role) label pairs and
+    have sensible values (not_after > not_before > 0, not_after > now()).
+
+    expected_labels is a list of (name, role) tuples, e.g.:
+        [("dirk", "server"), ("dirk", "client")]
+
+    Exits 1 if any expected series is missing or has invalid bounds.
+    The per-pair assertion blocks are unrolled in Starlark (no shell
+    while-loop) to sidestep the classic `echo | while ...; exit 1` pitfall
+    where `exit 1` inside a pipeline subshell does not propagate up.
+    """
+    script_lines = [
+        "set -e",
+        'METRICS=$(wget -q -O - "http://{0}:{1}/metrics")'.format(
+            service_name, metrics_port
+        ),
+        'NOW=$(date +%s)',
+    ]
+
+    for label_name, label_role in expected_labels:
+        # grep/awk section — keep grep lines free of .format() placeholders
+        # to avoid brace-escaping grief.
+        grep_prefix_after = (
+            '^certmanager_certificate_not_after_seconds\\{'
+        )
+        grep_prefix_before = (
+            '^certmanager_certificate_not_before_seconds\\{'
+        )
+        script_lines.extend(
+            [
+                'NOT_AFTER=$(echo "$METRICS" | grep -E "{0}" | grep \'name="{1}"\' | grep \'role="{2}"\' | awk \'{{print $2}}\')'.format(
+                    grep_prefix_after, label_name, label_role
+                ),
+                'NOT_BEFORE=$(echo "$METRICS" | grep -E "{0}" | grep \'name="{1}"\' | grep \'role="{2}"\' | awk \'{{print $2}}\')'.format(
+                    grep_prefix_before, label_name, label_role
+                ),
+                'if [ -z "$NOT_AFTER" ] || [ -z "$NOT_BEFORE" ]; then',
+                '  echo "FAIL: missing certmanager gauges for name={0} role={1} on {2}"'.format(
+                    label_name, label_role, service_name
+                ),
+                "  exit 1",
+                "fi",
+                # Prometheus emits gauge values in scientific notation (e.g.
+                # 1.934466847e+09); printf "%.0f" normalises to a plain
+                # integer so shell `-le`/`-ge` comparisons work.
+                'NA_INT=$(printf "%.0f" "$NOT_AFTER")',
+                'NB_INT=$(printf "%.0f" "$NOT_BEFORE")',
+                'if [ "$NA_INT" -le "$NB_INT" ]; then',
+                '  echo "FAIL: not_after ($NOT_AFTER) <= not_before ($NOT_BEFORE) for name={0} role={1} on {2}"'.format(
+                    label_name, label_role, service_name
+                ),
+                "  exit 1",
+                "fi",
+                'if [ "$NA_INT" -le "$NOW" ]; then',
+                '  echo "FAIL: certificate already expired: not_after=$NOT_AFTER now=$NOW for name={0} role={1} on {2}"'.format(
+                    label_name, label_role, service_name
+                ),
+                "  exit 1",
+                "fi",
+                'echo "OK: {0} {1} name={2} role={3} not_after=$NOT_AFTER not_before=$NOT_BEFORE"'.format(
+                    service_name, tag, label_name, label_role
+                ),
+            ]
+        )
+
+    plan.run_sh(
+        name="assert-certmanager-metrics-{0}-{1}".format(tag, service_name),
+        description="Asserting certmanager gauges on {0} ({1})".format(
+            service_name, tag
+        ),
+        run="\n".join(script_lines),
+        image=ALPINE_IMAGE,
+        wait=None,
+    )
+
+
+def record_cert_serial(
+    plan,
+    service_name,
+    ca_cert_artifact,
+    client_cert_artifact,
+    client_key_artifact,
+    tag="pre-reload",
+):
+    """Capture the current TLS cert serial Dirk is presenting, into a file
+    artifact. Returns the artifact name for later comparison.
+
+    Uses openssl s_client to connect and x509 -noout -serial to extract.
+    Exits 1 if the serial cannot be fetched.
+    """
+    artifact_name = "cert-serial-{0}-{1}".format(service_name, tag)
+    plan.run_sh(
+        name="record-cert-serial-{0}-{1}".format(tag, service_name),
+        description="Recording cert serial on {0} ({1})".format(service_name, tag),
+        run="\n".join(
+            [
+                "set -e",
+                "SERIAL=$(echo | openssl s_client -connect {0}:{1} -alpn h2 -CAfile /ca/ca.crt -cert /client-cert/*.crt -key /client-key/*.key 2>/dev/null | openssl x509 -noout -serial | cut -d= -f2 | tr -d '[:space:]')".format(
+                    service_name, dirk_launcher.DIRK_GRPC_PORT_NUM
+                ),
+                'if [ -z "$SERIAL" ]; then',
+                '  echo "FAIL: could not extract cert serial from {0}"'.format(
+                    service_name
+                ),
+                "  exit 1",
+                "fi",
+                "mkdir -p /out",
+                'printf "%s" "$SERIAL" > /out/serial.txt',
+                'echo "RECORDED: {0} serial=$SERIAL"'.format(service_name),
+            ]
+        ),
+        image=OPENSSL_IMAGE,
+        files={
+            "/ca": ca_cert_artifact,
+            "/client-cert": client_cert_artifact,
+            "/client-key": client_key_artifact,
+        },
+        store=[StoreSpec(src="/out/serial.txt", name=artifact_name)],
+        wait=None,
+    )
+    return artifact_name
+
+
+def assert_cert_serial_changed(
+    plan,
+    service_name,
+    old_serial_artifact,
+    ca_cert_artifact,
+    client_cert_artifact,
+    client_key_artifact,
+    tag="post-reload",
+):
+    """Assert the currently-served cert serial differs from the serial
+    previously recorded in old_serial_artifact.
+
+    Exits 1 if the serial is identical — which would mean the reload did
+    NOT actually swap the cert.
+    """
+    plan.run_sh(
+        name="assert-cert-serial-changed-{0}-{1}".format(tag, service_name),
+        description="Asserting cert serial changed on {0} ({1})".format(
+            service_name, tag
+        ),
+        run="\n".join(
+            [
+                "set -e",
+                'OLD=$(cat /old-serial/serial.txt | tr -d "[:space:]")',
+                'if [ -z "$OLD" ]; then',
+                '  echo "FAIL: empty recorded serial (artifact corrupt?)"',
+                "  exit 1",
+                "fi",
+                "NEW=$(echo | openssl s_client -connect {0}:{1} -alpn h2 -CAfile /ca/ca.crt -cert /client-cert/*.crt -key /client-key/*.key 2>/dev/null | openssl x509 -noout -serial | cut -d= -f2 | tr -d '[:space:]')".format(
+                    service_name, dirk_launcher.DIRK_GRPC_PORT_NUM
+                ),
+                'if [ -z "$NEW" ]; then',
+                '  echo "FAIL: could not fetch current cert serial from {0}"'.format(
+                    service_name
+                ),
+                "  exit 1",
+                "fi",
+                'if [ "$OLD" = "$NEW" ]; then',
+                '  echo "FAIL: cert serial unchanged on {0}: old=$OLD new=$NEW"'.format(
+                    service_name
+                ),
+                "  exit 1",
+                "fi",
+                'echo "OK: {0} cert serial changed from $OLD to $NEW"'.format(
+                    service_name
+                ),
+            ]
+        ),
+        image=OPENSSL_IMAGE,
+        files={
+            "/old-serial": old_serial_artifact,
+            "/ca": ca_cert_artifact,
+            "/client-cert": client_cert_artifact,
+            "/client-key": client_key_artifact,
+        },
         wait=None,
     )
 

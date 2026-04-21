@@ -1,5 +1,14 @@
 assertions = import_module("./assertions.star")
 reload = import_module("./reload.star")
+dirk_launcher = import_module("../dirk/dirk_launcher.star")
+vc_shared = import_module("../vc/shared.star")
+
+DIRK_CERTMANAGER_LABELS = [("dirk", "server"), ("dirk", "client")]
+# The default devnet config doesn't enable tracing TLS (Tempo uses plain HTTP),
+# so only name="dirk" role="client" series appears on Vouch. A tracing-TLS-
+# enabled config would additionally expose name="tracing" role="client".
+# TODO: cover name="tracing" under a tracing-TLS-enabled config.
+VOUCH_CERTMANAGER_LABELS = [("dirk", "client")]
 
 
 def run_certmanager_tests(
@@ -44,6 +53,32 @@ def run_certmanager_tests(
         assertions.assert_san_identity(plan, dirk_service_names)
         assertions.assert_no_san_fallback_to_cn(plan, dirk_service_names)
         plan.print("Phase A passed: all Dirk instances using go-certmanager")
+
+        plan.print(
+            "--- Cluster {0}: certmanager Metrics Verification ---".format(
+                cluster_id
+            )
+        )
+        # Dirk presents its own identity for both inbound (server) and peer
+        # outbound (client) — same cert material, two role labels.
+        for service_name in dirk_service_names:
+            assertions.assert_certmanager_metrics(
+                plan,
+                service_name,
+                dirk_launcher.DIRK_METRICS_PORT_NUM,
+                DIRK_CERTMANAGER_LABELS,
+                tag="phase-a",
+            )
+        # Vouch has a Dirk-comms client cert concern.
+        for service_name in vouch_service_names:
+            assertions.assert_certmanager_metrics(
+                plan,
+                service_name,
+                vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
+                VOUCH_CERTMANAGER_LABELS,
+                tag="phase-a",
+            )
+        plan.print("certmanager metrics verification passed")
 
         plan.print(
             "--- Cluster {0}: Attestation & Signing Check ---".format(cluster_id)
