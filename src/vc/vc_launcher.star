@@ -40,6 +40,10 @@ def get_vc_config(
     vc_index,
     extra_files_artifacts,
     tempo_otlp_grpc_url=None,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
     vc_binary_artifact=None,
     dirk_context=None,
     vouch_account_start=None,
@@ -238,6 +242,10 @@ def get_vc_config(
             vouch_account_start=vouch_account_start,
             vouch_account_count=vouch_account_count,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_ca_artifact,
         )
     elif vc_type == constants.VC_TYPE.grandine:
         fail("Grandine VC is not yet supported")

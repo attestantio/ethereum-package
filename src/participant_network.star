@@ -56,6 +56,10 @@ def launch_participant_network(
     extra_files_artifacts,
     tempo_otlp_grpc_url,
     backend,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
 ):
     network_id = network_params.network_id
     num_participants = len(args_with_right_defaults.participants)
@@ -922,6 +926,10 @@ def launch_participant_network(
             vc_index=current_vc_index,
             extra_files_artifacts=extra_files_artifacts,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_ca_artifact,
             vc_binary_artifact=vc_binary_artifact,
             dirk_context=cluster_dirk_contexts[participant_cluster_map[index]]
             if vc_type == constants.VC_TYPE.vouch and index in participant_cluster_map

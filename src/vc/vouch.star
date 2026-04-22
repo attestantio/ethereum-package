@@ -15,6 +15,7 @@ VERBOSITY_LEVELS = {
 VOUCH_CONFIG_MOUNT_DIRPATH_ON_SERVICE = "/config"
 VOUCH_CONFIG_FILENAME = "vouch.yml"
 VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/certs"
+VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/tempo-certs"
 
 
 def get_config(
@@ -36,6 +37,10 @@ def get_config(
     vouch_account_start=None,
     vouch_account_count=None,
     tempo_otlp_grpc_url=None,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
         participant.vc_log_level, global_log_level, VERBOSITY_LEVELS
@@ -93,7 +98,15 @@ def get_config(
     if tempo_otlp_grpc_url != None:
         # Vouch expects bare host:port for OTLP gRPC; strip http:// scheme
         tracing_address = tempo_otlp_grpc_url.replace("http://", "")
-        tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
+        if tempo_mtls_enabled:
+            tracing_yaml = """tracing:
+  address: '{0}'
+  client-cert: 'file://{1}/client.crt'
+  client-key: 'file://{1}/client.key'
+  ca-cert: 'file://{1}/ca.crt'
+""".format(tracing_address, VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE)
+        else:
+            tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
 
     # Build the vouch.yml config file content
     # NOTE: {2} (dirk_endpoints_yaml) and {4} (accounts_yaml) must keep their
@@ -159,6 +172,19 @@ graffiti:
         dirk_context.client_key_artifact,
     )
     files[VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE] = certs_artifact
+
+    # When Tempo mTLS is enabled, mount a tempo-certs artifact with
+    # canonical names (client.crt, client.key, ca.crt) under /tempo-certs.
+    # Kept separate from the Dirk /certs mount to avoid filename collisions.
+    if tempo_mtls_enabled and tempo_client_cert_artifact != None:
+        tempo_certs_artifact = _prepare_vouch_tempo_certs(
+            plan,
+            vc_index,
+            tempo_ca_artifact,
+            tempo_client_cert_artifact,
+            tempo_client_key_artifact,
+        )
+        files[VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE] = tempo_certs_artifact
 
     public_ports = {}
     if port_publisher.vc_enabled:
@@ -261,6 +287,43 @@ def _prepare_vouch_certs(
             StoreSpec(
                 src="/out/",
                 name="vouch-certs-{0}".format(vc_index),
+            )
+        ],
+        wait=None,
+    )
+
+    return result.files_artifacts[0]
+
+
+def _prepare_vouch_tempo_certs(
+    plan, vc_index, ca_cert_artifact, client_cert_artifact, client_key_artifact
+):
+    """Combine the Tempo CA + Vouch tracing client cert/key into a single
+    artifact with canonical filenames (ca.crt, client.crt, client.key) that
+    the vouch tracing: block references.
+    """
+    result = plan.run_sh(
+        name="prepare-vouch-tempo-certs-{0}".format(vc_index),
+        description="Preparing Tempo mTLS cert files for Vouch VC {0}".format(vc_index),
+        run="\n".join(
+            [
+                "set -e",
+                "mkdir -p /out",
+                "cp /ca-cert/* /out/ca.crt",
+                "cp /client-cert/* /out/client.crt",
+                "cp /client-key/* /out/client.key",
+            ]
+        ),
+        image="alpine:3.21",
+        files={
+            "/ca-cert": ca_cert_artifact,
+            "/client-cert": client_cert_artifact,
+            "/client-key": client_key_artifact,
+        },
+        store=[
+            StoreSpec(
+                src="/out/",
+                name="vouch-tempo-certs-{0}".format(vc_index),
             )
         ],
         wait=None,
