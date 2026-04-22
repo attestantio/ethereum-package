@@ -1104,6 +1104,7 @@ def run(plan, args={}):
             dirk_cluster_info=certmanager_cluster_info,
             beacon_service_name=all_cl_contexts[0].beacon_service_name,
             tempo_query_url=tempo_query_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
         )
 
     if args_with_right_defaults.wait_for_finalization:

@@ -4,11 +4,10 @@ dirk_launcher = import_module("../dirk/dirk_launcher.star")
 vc_shared = import_module("../vc/shared.star")
 
 DIRK_CERTMANAGER_LABELS = [("dirk", "server"), ("dirk", "client")]
-# The default devnet config doesn't enable tracing TLS (Tempo uses plain HTTP),
-# so only name="dirk" role="client" series appears on Vouch. A tracing-TLS-
-# enabled config would additionally expose name="tracing" role="client".
-# TODO: cover name="tracing" under a tracing-TLS-enabled config.
-VOUCH_CERTMANAGER_LABELS = [("dirk", "client")]
+# When Tempo runs with plain HTTP, only the Dirk-comms client cert is managed.
+# When Tempo mTLS is enabled, Vouch also registers a tracing client cert.
+VOUCH_CERTMANAGER_LABELS_PLAIN = [("dirk", "client")]
+VOUCH_CERTMANAGER_LABELS_WITH_TRACING = [("dirk", "client"), ("tracing", "client")]
 
 
 def run_certmanager_tests(
@@ -16,6 +15,7 @@ def run_certmanager_tests(
     dirk_cluster_info,
     beacon_service_name,
     tempo_query_url=None,
+    tempo_mtls_enabled=False,
 ):
     """Run the full go-certmanager integration test suite.
 
@@ -34,7 +34,15 @@ def run_certmanager_tests(
             - client_key_artifact: Vouch client key artifact
         beacon_service_name: CL beacon node service name (for finalization wait).
         tempo_query_url: Tempo HTTP query URL (e.g. "http://tempo:3200"), or None.
+        tempo_mtls_enabled: When True, Vouch manages an additional tracing
+            client cert — expands the expected metric label set to include
+            name="tracing" role="client".
     """
+    vouch_certmanager_labels = (
+        VOUCH_CERTMANAGER_LABELS_WITH_TRACING
+        if tempo_mtls_enabled
+        else VOUCH_CERTMANAGER_LABELS_PLAIN
+    )
     plan.print("========================================")
     plan.print("  go-certmanager Integration Test Suite")
     plan.print("========================================")
@@ -69,13 +77,14 @@ def run_certmanager_tests(
                 DIRK_CERTMANAGER_LABELS,
                 tag="phase-a",
             )
-        # Vouch has a Dirk-comms client cert concern.
+        # Vouch has a Dirk-comms client cert, plus a tracing client cert
+        # when Tempo mTLS is enabled.
         for service_name in vouch_service_names:
             assertions.assert_certmanager_metrics(
                 plan,
                 service_name,
                 vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
-                VOUCH_CERTMANAGER_LABELS,
+                vouch_certmanager_labels,
                 tag="phase-a",
             )
         plan.print("certmanager metrics verification passed")
@@ -99,6 +108,7 @@ def run_certmanager_tests(
             client_cert_artifact=info.client_cert_artifact,
             client_key_artifact=info.client_key_artifact,
             tempo_query_url=tempo_query_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
         )
 
     plan.print("========================================")

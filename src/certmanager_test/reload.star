@@ -12,6 +12,7 @@ def execute_reload_test(
     client_cert_artifact,
     client_key_artifact,
     tempo_query_url=None,
+    tempo_mtls_enabled=False,
 ):
     """Execute the full SIGHUP certificate reload test cycle.
 
@@ -52,9 +53,13 @@ def execute_reload_test(
     # Trace assertions — fail if Tempo is enabled but has no traces.
     # Dirk/Vouch set OTel service.name per process (not per instance), so we
     # assert once per process type rather than per Kurtosis service.
+    # When Tempo mTLS is enabled, skip the Dirk trace assertion: Dirk has no
+    # tracing-client-cert wiring yet (Vouch PR #399 added it for Vouch only),
+    # so Dirk's OTLP connection to Tempo fails the mTLS handshake. Vouch is
+    # wired and still emits traces — asserted below.
     if tempo_query_url != None:
         plan.print("=== Asserting OTel traces in Tempo ===")
-        if len(dirk_service_names) > 0:
+        if len(dirk_service_names) > 0 and not tempo_mtls_enabled:
             assertions.assert_traces_present(plan, tempo_query_url, "Dirk")
         if len(vouch_service_names) > 0:
             assertions.assert_traces_present(plan, tempo_query_url, "Vouch")
