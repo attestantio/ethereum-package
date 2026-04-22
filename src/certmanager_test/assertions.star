@@ -194,13 +194,16 @@ def wait_for_attestations(
     is detected, avoiding fixed sleeps. Times out after timeout_seconds.
     """
     for service_name in vouch_service_names:
-        # Build the shell script in parts: lines that need .format() for
-        # service_name/port, and lines with grep/awk escaping that must NOT
-        # use .format() (to avoid brace-escaping issues).
+        # Single exit-point structure: loop records FOUND_COUNT on success
+        # and break; all exit calls live at the very bottom of the script.
+        # Mid-loop `exit 0` races Kurtosis's exit-code sampling against the
+        # container-terminate syscall (observed in earlier devnet runs:
+        # script prints OK, container exits 0, but Kurtosis captures 1).
         script_lines = [
             "TIMEOUT={0}".format(timeout_seconds),
             "INTERVAL=5",
             "ELAPSED=0",
+            'FOUND_COUNT=""',
             'while [ "$ELAPSED" -lt "$TIMEOUT" ]; do',
             '  METRICS=$(wget -q -O - "http://{0}:{1}/metrics" 2>/dev/null || true)'.format(
                 service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
@@ -213,14 +216,18 @@ def wait_for_attestations(
         script_lines.extend(
             [
                 '  if [ -n "$COUNT" ] && [ "$COUNT" != "0" ]; then',
-                '    echo "OK: {0} has $COUNT attestations ({1})"'.format(
-                    service_name, phase_label
-                ),
-                "    exit 0",
+                '    FOUND_COUNT="$COUNT"',
+                "    break",
                 "  fi",
                 "  sleep $INTERVAL",
                 "  ELAPSED=$((ELAPSED + INTERVAL))",
                 "done",
+                'if [ -n "$FOUND_COUNT" ]; then',
+                '  echo "OK: {0} has $FOUND_COUNT attestations ({1})"'.format(
+                    service_name, phase_label
+                ),
+                "  exit 0",
+                "fi",
                 'echo "FAIL: No successful attestations on {0} after {1}s ({2})"'.format(
                     service_name, timeout_seconds, phase_label
                 ),
@@ -234,7 +241,7 @@ def wait_for_attestations(
             ),
             run="\n".join(script_lines),
             image=ALPINE_IMAGE,
-            wait=None,
+            wait="5m",
         )
 
 
