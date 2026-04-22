@@ -16,6 +16,10 @@ OTLP_HTTP_PORT_NUMBER = 4318
 
 TEMPO_CONFIG_FILENAME = "tempo.yaml"
 TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE = "/etc/tempo"
+TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE = "/etc/tempo/tls"
+TEMPO_SERVER_CERT_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/server.crt"
+TEMPO_SERVER_KEY_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/server.key"
+TEMPO_CLIENT_CA_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/ca.crt"
 
 USED_PORTS = {
     HTTP_PORT_ID: shared_utils.new_port_spec(
@@ -47,6 +51,9 @@ def launch_tempo(
     tempo_params,
     port_publisher,
     index,
+    tempo_mtls_enabled=False,
+    tempo_server_cert_artifact=None,
+    tempo_client_ca_artifact=None,
 ):
     tolerations = shared_utils.get_tolerations(global_tolerations=global_tolerations)
 
@@ -54,6 +61,7 @@ def launch_tempo(
         plan,
         config_template,
         tempo_params,
+        tempo_mtls_enabled,
     )
 
     public_ports = shared_utils.get_additional_service_standard_public_port(
@@ -63,12 +71,21 @@ def launch_tempo(
         1,
     )
 
+    tls_artifact = None
+    if tempo_mtls_enabled:
+        tls_artifact = _prepare_tempo_tls_artifact(
+            plan,
+            tempo_server_cert_artifact,
+            tempo_client_ca_artifact,
+        )
+
     config = get_config(
         config_files_artifact_name,
         global_node_selectors,
         tolerations,
         tempo_params,
         public_ports,
+        tls_artifact,
     )
 
     service = plan.add_service(SERVICE_NAME, config)
@@ -92,8 +109,9 @@ def get_tempo_config_dir_artifact_uuid(
     plan,
     config_template,
     tempo_params,
+    tempo_mtls_enabled=False,
 ):
-    template_data = new_config_template_data(tempo_params)
+    template_data = new_config_template_data(tempo_params, tempo_mtls_enabled)
 
     template_and_data = shared_utils.new_template_and_data(
         config_template, template_data
@@ -115,19 +133,24 @@ def get_config(
     tolerations,
     tempo_params,
     public_ports,
+    tls_artifact=None,
 ):
     config_file_path = shared_utils.path_join(
         TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE,
         TEMPO_CONFIG_FILENAME,
     )
 
+    files = {
+        TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
+    }
+    if tls_artifact != None:
+        files[TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE] = tls_artifact
+
     return ServiceConfig(
         image=tempo_params.image,
         ports=USED_PORTS,
         public_ports=public_ports,
-        files={
-            TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
-        },
+        files=files,
         cmd=[
             "-config.file={}".format(config_file_path),
         ],
@@ -140,7 +163,7 @@ def get_config(
     )
 
 
-def new_config_template_data(tempo_params):
+def new_config_template_data(tempo_params, tempo_mtls_enabled=False):
     return {
         "HTTPPort": HTTP_PORT_NUMBER,
         "GRPCPort": GRPC_PORT_NUMBER,
@@ -151,4 +174,40 @@ def new_config_template_data(tempo_params):
         "IngestionBurstLimit": tempo_params.ingestion_burst_limit,
         "MaxSearchDuration": tempo_params.max_search_duration,
         "MaxBytesPerTrace": tempo_params.max_bytes_per_trace,
+        "TempoMTLSEnabled": tempo_mtls_enabled,
+        "TempoServerCertPath": TEMPO_SERVER_CERT_PATH,
+        "TempoServerKeyPath": TEMPO_SERVER_KEY_PATH,
+        "TempoClientCAPath": TEMPO_CLIENT_CA_PATH,
     }
+
+
+def _prepare_tempo_tls_artifact(plan, server_cert_artifact, client_ca_artifact):
+    """Combine the server cert/key and client CA into a single artifact with
+    canonical filenames (server.crt, server.key, ca.crt) that the tempo.yaml
+    template references. The server_cert_artifact is a directory containing
+    both server.crt and server.key (produced by tempo_certs.star).
+    """
+    result = plan.run_sh(
+        name="prepare-tempo-tls",
+        description="Preparing Tempo TLS material for mTLS OTLP ingress",
+        run="\n".join(
+            [
+                "set -e",
+                "mkdir -p /out",
+                "cp /server-cert/server.crt /out/server.crt",
+                "cp /server-cert/server.key /out/server.key",
+                "cp /ca/ca.crt /out/ca.crt",
+                # Tempo container runs as a non-root user; openssl writes keys
+                # mode 600 as root, so make them world-readable.
+                "chmod 0644 /out/server.crt /out/server.key /out/ca.crt",
+            ]
+        ),
+        image="alpine:3.21",
+        files={
+            "/server-cert": server_cert_artifact,
+            "/ca": client_ca_artifact,
+        },
+        store=[StoreSpec(src="/out/", name="tempo-tls-mounted")],
+        wait=None,
+    )
+    return result.files_artifacts[0]

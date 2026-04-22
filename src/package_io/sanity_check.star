@@ -520,6 +520,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "checkpoint_sync_enabled": "",
     "checkpoint_sync_url": "",
     "certmanager_test_enabled": "",
+    "tempo_mtls_enabled": "",
 }
 
 

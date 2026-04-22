@@ -32,6 +32,7 @@ blockscout = import_module("./src/blockscout/blockscout_launcher.star")
 prometheus = import_module("./src/prometheus/prometheus_launcher.star")
 grafana = import_module("./src/grafana/grafana_launcher.star")
 tempo = import_module("./src/tempo/tempo_launcher.star")
+tempo_certs = import_module("./src/tempo/tempo_certs.star")
 commit_boost_mev_boost = import_module(
     "./src/mev/commit-boost/mev_boost/mev_boost_launcher.star"
 )
@@ -220,6 +221,22 @@ def run(plan, args={}):
             tempo.SERVICE_NAME, tempo.HTTP_PORT_NUMBER
         )
 
+    tempo_mtls_enabled = (
+        args_with_right_defaults.tempo_mtls_enabled
+        and "tempo" in args_with_right_defaults.additional_services
+    )
+    tempo_server_cert_artifact = None
+    tempo_ca_artifact = None
+    tempo_client_cert_artifact = None
+    tempo_client_key_artifact = None
+    if tempo_mtls_enabled:
+        plan.print("Generating Tempo mTLS certificates")
+        tempo_cert_result = tempo_certs.generate_tempo_certs(plan)
+        tempo_ca_artifact = tempo_cert_result.ca_artifact
+        tempo_server_cert_artifact = tempo_cert_result.server_cert_artifact
+        tempo_client_cert_artifact = tempo_cert_result.client_cert_artifact
+        tempo_client_key_artifact = tempo_cert_result.client_key_artifact
+
     if args_with_right_defaults.mev_type == constants.MEV_RS_MEV_TYPE:
         plan.print("Generating mev-rs builder config file")
         mev_rs_builder_config_file = mev_rs_mev_builder.new_builder_config(
@@ -277,6 +294,10 @@ def run(plan, args={}):
         extra_files_artifacts,
         tempo_otlp_grpc_url,
         detected_backend,
+        tempo_mtls_enabled=tempo_mtls_enabled,
+        tempo_client_cert_artifact=tempo_client_cert_artifact,
+        tempo_client_key_artifact=tempo_client_key_artifact,
+        tempo_ca_artifact=tempo_ca_artifact,
     )
 
     plan.print(
@@ -926,6 +947,9 @@ def run(plan, args={}):
                 args_with_right_defaults.tempo_params,
                 args_with_right_defaults.port_publisher,
                 index,
+                tempo_mtls_enabled=tempo_mtls_enabled,
+                tempo_server_cert_artifact=tempo_server_cert_artifact,
+                tempo_client_ca_artifact=tempo_ca_artifact,
             )
             plan.print("Successfully launched tempo")
         elif additional_service == "prometheus_grafana":

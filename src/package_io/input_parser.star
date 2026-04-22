@@ -129,6 +129,7 @@ def input_parser(plan, input_args):
     result["persistent"] = False
     result["parallel_keystore_generation"] = False
     result["certmanager_test_enabled"] = False
+    result["tempo_mtls_enabled"] = False
     result["global_tolerations"] = []
     result["global_node_selectors"] = {}
     result["port_publisher"] = get_port_publisher_params("default")
@@ -923,6 +924,7 @@ def input_parser(plan, input_args):
         xatu_sentry_enabled=result["xatu_sentry_enabled"],
         parallel_keystore_generation=result["parallel_keystore_generation"],
         certmanager_test_enabled=result["certmanager_test_enabled"],
+        tempo_mtls_enabled=result["tempo_mtls_enabled"],
         disable_peer_scoring=result["disable_peer_scoring"],
         persistent=result["persistent"],
         xatu_sentry_params=struct(
