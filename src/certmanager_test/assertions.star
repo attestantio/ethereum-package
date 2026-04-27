@@ -312,18 +312,14 @@ def assert_certmanager_metrics(
         'METRICS=$(wget -q -O - "http://{0}:{1}/metrics")'.format(
             service_name, metrics_port
         ),
-        'NOW=$(date +%s)',
+        "NOW=$(date +%s)",
     ]
 
     for label_name, label_role in expected_labels:
         # grep/awk section — keep grep lines free of .format() placeholders
         # to avoid brace-escaping grief.
-        grep_prefix_after = (
-            '^certmanager_certificate_not_after_seconds\\{'
-        )
-        grep_prefix_before = (
-            '^certmanager_certificate_not_before_seconds\\{'
-        )
+        grep_prefix_after = "^certmanager_certificate_not_after_seconds\\{"
+        grep_prefix_before = "^certmanager_certificate_not_before_seconds\\{"
         script_lines.extend(
             [
                 'NOT_AFTER=$(echo "$METRICS" | grep -E "{0}" | grep \'name="{1}"\' | grep \'role="{2}"\' | awk \'{{print $2}}\')'.format(

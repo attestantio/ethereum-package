@@ -63,9 +63,7 @@ def run_certmanager_tests(
         plan.print("Phase A passed: all Dirk instances using go-certmanager")
 
         plan.print(
-            "--- Cluster {0}: certmanager Metrics Verification ---".format(
-                cluster_id
-            )
+            "--- Cluster {0}: certmanager Metrics Verification ---".format(cluster_id)
         )
         # Dirk presents its own identity for both inbound (server) and peer
         # outbound (client) — same cert material, two role labels.

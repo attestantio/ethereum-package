@@ -104,7 +104,9 @@ def get_config(
   client-cert: 'file://{1}/client.crt'
   client-key: 'file://{1}/client.key'
   ca-cert: 'file://{1}/ca.crt'
-""".format(tracing_address, VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE)
+""".format(
+                tracing_address, VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE
+            )
         else:
             tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
 
