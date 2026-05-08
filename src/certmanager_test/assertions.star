@@ -185,66 +185,6 @@ def verify_cert_reachable(
         )
 
 
-def wait_for_attestations(
-    plan, vouch_service_names, phase_label="post-reload", timeout_seconds=300
-):
-    """Poll Vouch metrics until attestation count > 0, or timeout.
-
-    Polls every 5 seconds. Returns as soon as any successful attestation
-    is detected, avoiding fixed sleeps. Times out after timeout_seconds.
-    """
-    for service_name in vouch_service_names:
-        # Single exit-point structure: loop records FOUND_COUNT on success
-        # and break; all exit calls live at the very bottom of the script.
-        # Mid-loop `exit 0` races Kurtosis's exit-code sampling against the
-        # container-terminate syscall (observed in earlier devnet runs:
-        # script prints OK, container exits 0, but Kurtosis captures 1).
-        script_lines = [
-            "TIMEOUT={0}".format(timeout_seconds),
-            "INTERVAL=5",
-            "ELAPSED=0",
-            'FOUND_COUNT=""',
-            'while [ "$ELAPSED" -lt "$TIMEOUT" ]; do',
-            '  METRICS=$(wget -q -O - "http://{0}:{1}/metrics" 2>/dev/null || true)'.format(
-                service_name, vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM
-            ),
-        ]
-        # grep/awk line — no .format() to avoid brace issues
-        script_lines.append(
-            '  COUNT=$(echo "$METRICS" | grep -E "^vouch_attestation_process_requests_total\\{.*result=\\"succeeded\\"" | awk \'{print $2}\' || true)'
-        )
-        script_lines.extend(
-            [
-                '  if [ -n "$COUNT" ] && [ "$COUNT" != "0" ]; then',
-                '    FOUND_COUNT="$COUNT"',
-                "    break",
-                "  fi",
-                "  sleep $INTERVAL",
-                "  ELAPSED=$((ELAPSED + INTERVAL))",
-                "done",
-                'if [ -n "$FOUND_COUNT" ]; then',
-                '  echo "OK: {0} has $FOUND_COUNT attestations ({1})"'.format(
-                    service_name, phase_label
-                ),
-                "  exit 0",
-                "fi",
-                'echo "FAIL: No successful attestations on {0} after {1}s ({2})"'.format(
-                    service_name, timeout_seconds, phase_label
-                ),
-                "exit 1",
-            ]
-        )
-        plan.run_sh(
-            name="wait-attestations-{0}-{1}".format(phase_label, service_name),
-            description="Waiting for attestations on {0} ({1})".format(
-                service_name, phase_label
-            ),
-            run="\n".join(script_lines),
-            image=ALPINE_IMAGE,
-            wait="5m",
-        )
-
-
 def assert_traces_present(plan, tempo_query_url, otel_service_name):
     """Assert that OTel traces are present in Tempo for the given service.
 

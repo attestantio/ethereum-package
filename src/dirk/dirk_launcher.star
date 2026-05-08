@@ -102,7 +102,7 @@ def launch_dirk_cluster(
     # Build the peers section (self-reference required even for single node)
     peer_lines = []
     for i in range(1, peer_count + 1):
-        service_name = "{0}-{1}".format(cluster_prefix, i)
+        service_name = dirk_service_names[i - 1]
         peer_lines.append("  {0}: {1}:{2}".format(i, service_name, DIRK_GRPC_PORT_NUM))
     peer_entries = "\n".join(peer_lines)
 
@@ -127,7 +127,7 @@ def launch_dirk_cluster(
 
     # Render config and launch each Dirk instance
     for i in range(1, peer_count + 1):
-        service_name = "{0}-{1}".format(cluster_prefix, i)
+        service_name = dirk_service_names[i - 1]
 
         # Render the config file for this instance
         config_template_data = {

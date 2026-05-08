@@ -151,10 +151,8 @@ def _phase_b_reload_to_replacement(
 
     # Post-reload attestation check intentionally omitted:
     # The metric + serial assertions above already demonstrate the reload took
-    # effect. The wait_for_attestations polling loop trips a Kurtosis exit-code
-    # sampling race (script echoes OK and exits 0, but Kurtosis captures 1)
-    # that is not load-bearing for the certmanager metrics goal of this suite.
-    # Phase-A `assert_attestations_and_signing` already proved Vouch is signing.
+    # effect. Phase-A `assert_attestations_and_signing` already proved Vouch
+    # is signing — no need to re-poll attestations here.
 
 
 def _phase_c_reload_to_expired(

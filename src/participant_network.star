@@ -348,11 +348,16 @@ def launch_participant_network(
                 log_to_file=certmanager_test_enabled,
             )
 
+            # Prepare ethdo client certs once — reused by both DKG steps below.
+            ethdo_certs = dirk_dkg.prepare_ethdo_certs(
+                plan, cert_result, cluster_id=cluster_id
+            )
+
             # Run DKG ceremony
             dirk_dkg.run_dkg_ceremony(
                 plan,
                 dirk_service_names=dirk_service_names,
-                cert_result=cert_result,
+                ethdo_certs=ethdo_certs,
                 validator_count=cdef.validator_count,
                 signing_threshold=cdef.dirk_signing_threshold,
                 peer_count=cdef.dirk_peer_count,
@@ -365,7 +370,7 @@ def launch_participant_network(
             validators_artifact = dirk_dkg.extract_dkg_validators_file(
                 plan,
                 dirk_service_names=dirk_service_names,
-                cert_result=cert_result,
+                ethdo_certs=ethdo_certs,
                 validator_count=cdef.validator_count,
                 wallet_name=wallet_name,
                 account_start=cdef.account_start,

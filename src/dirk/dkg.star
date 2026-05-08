@@ -4,7 +4,7 @@ constants = import_module("../package_io/constants.star")
 def run_dkg_ceremony(
     plan,
     dirk_service_names,
-    cert_result,
+    ethdo_certs,
     validator_count,
     signing_threshold,
     peer_count,
@@ -21,7 +21,8 @@ def run_dkg_ceremony(
     Args:
         plan: The Kurtosis plan.
         dirk_service_names: List of Dirk service names.
-        cert_result: Return value from certs.generate_certs().
+        ethdo_certs: File artifact from prepare_ethdo_certs() — bundles
+            ca.crt, ethdo.crt, ethdo.key.
         validator_count: Number of validator accounts to create.
         signing_threshold: Signing threshold for the distributed keys.
         peer_count: Total number of Dirk peers (participants).
@@ -33,7 +34,6 @@ def run_dkg_ceremony(
         A struct with validator_count and wallet_name for downstream use.
     """
     suffix = "-{0}".format(cluster_id) if cluster_id else ""
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -92,7 +92,7 @@ def run_dkg_ceremony(
 def extract_dkg_validators_file(
     plan,
     dirk_service_names,
-    cert_result,
+    ethdo_certs,
     validator_count,
     wallet_name="DistributedWallet",
     account_start=0,
@@ -108,7 +108,8 @@ def extract_dkg_validators_file(
     Args:
         plan: The Kurtosis plan.
         dirk_service_names: List of Dirk service names.
-        cert_result: Return value from certs.generate_certs().
+        ethdo_certs: File artifact from prepare_ethdo_certs() — bundles
+            ca.crt, ethdo.crt, ethdo.key.
         validator_count: Number of validator accounts created by DKG.
         wallet_name: Name of the distributed wallet.
         account_start: Starting account index for DKG accounts.
@@ -118,7 +119,6 @@ def extract_dkg_validators_file(
         A file artifact containing validators.txt.
     """
     suffix = "-{0}".format(cluster_id) if cluster_id else ""
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -196,7 +196,7 @@ def extract_dkg_validators_file(
     return result.files_artifacts[0]
 
 
-def _prepare_ethdo_certs(plan, cert_result, cluster_id=""):
+def prepare_ethdo_certs(plan, cert_result, cluster_id=""):
     """Assemble ethdo client certs and CA cert into a single directory artifact.
 
     Args:
