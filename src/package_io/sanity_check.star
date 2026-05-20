@@ -86,6 +86,8 @@ PARTICIPANT_CATEGORIES = {
         "vouch_multiinstance_proposer_delay",
         "vouch_account_start",
         "vouch_account_count",
+        "vouch_default_strategies",
+        "vouch_strategies_yaml",
     ],
 }
 

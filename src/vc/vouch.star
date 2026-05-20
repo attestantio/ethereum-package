@@ -17,6 +17,40 @@ VOUCH_CONFIG_FILENAME = "vouch.yml"
 VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/certs"
 VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/tempo-certs"
 
+# Canonical Vouch strategies block.
+# Emitted by default unless the participant sets
+# vouch_default_strategies (no block) or provides
+# vouch_strategies_yaml (replacement block).
+#
+# Note: attestationdata.majority.threshold = 2 requires at least 2 beacon
+# nodes. Fixtures that route a single Vouch through one BN must opt out via
+# vouch_default_strategies: true.
+VOUCH_STRATEGIES_YAML = """strategies:
+  aggregateattestation:
+    style: 'best'
+  attestationdata:
+    style: 'majority'
+    majority:
+      threshold: 2
+    timeout: '2s'
+  beaconblockheader:
+    style: 'first'
+  beaconblockproposal:
+    style: 'best'
+    timeout: '1.5s'
+  beaconblockroot:
+    style: 'majority'
+  duties:
+    style: 'first'
+  signedbeaconblock:
+    style: 'first'
+  synccommitteecontribution:
+    style: 'best'
+    timeout: '1s'
+submitter:
+  style: 'multinode'
+"""
+
 
 def get_config(
     plan,
@@ -78,6 +112,19 @@ def get_config(
     else:
         accounts_yaml = "      - '{0}'\n".format(dirk_context.wallet_name)
 
+    # Resolve the strategies YAML block:
+    #   - vouch_default_strategies = True  → no block (Vouch built-in defaults)
+    #   - vouch_strategies_yaml non-empty  → user-provided block (overrides defaults)
+    #   - otherwise                        → VOUCH_STRATEGIES_YAML (the package default)
+    if participant.vouch_default_strategies:
+        strategies_yaml = ""
+    elif participant.vouch_strategies_yaml != "":
+        strategies_yaml = participant.vouch_strategies_yaml
+        if not strategies_yaml.endswith("\n"):
+            strategies_yaml += "\n"
+    else:
+        strategies_yaml = VOUCH_STRATEGIES_YAML
+
     # Build the multiinstance YAML block (if configured)
     multiinstance_yaml = ""
     if participant.vouch_multiinstance_style != "":
@@ -113,6 +160,8 @@ def get_config(
     # Build the vouch.yml config file content
     # NOTE: {2} (dirk_endpoints_yaml) and {4} (accounts_yaml) must keep their
     # trailing \n — the next template line continues without a separator.
+    # {10} (strategies_yaml) is either empty or a block ending in \n; placed
+    # between accountmanager and blockrelay to match canonical Vouch ordering.
     vouch_config_template = """log-level: '{0}'
 beacon-node-addresses:
 {1}
@@ -124,7 +173,7 @@ accountmanager:
     ca-cert: 'file://{3}/ca.crt'
     accounts:
 {4}    timeout: '30s'
-blockrelay:
+{10}blockrelay:
   fallback-fee-recipient: '{5}'
   fallback-gas-limit: 30000000
 metrics:
@@ -144,6 +193,7 @@ graffiti:
         full_name,
         multiinstance_yaml,
         tracing_yaml,
+        strategies_yaml,
     )
 
     # Create the config file artifact using render_templates
