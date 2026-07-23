@@ -77,6 +77,17 @@ PARTICIPANT_CATEGORIES = {
         "vc_beacon_node_indices",
         "checkpoint_sync_enabled",
         "skip_start",
+        "dirk_image",
+        "dirk_peer_count",
+        "dirk_signing_threshold",
+        "dirk_cluster_id",
+        "vouch_multiinstance_style",
+        "vouch_multiinstance_attester_delay",
+        "vouch_multiinstance_proposer_delay",
+        "vouch_account_start",
+        "vouch_account_count",
+        "vouch_default_strategies",
+        "vouch_strategies_yaml",
     ],
 }
 
@@ -510,6 +521,8 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "keymanager_enabled": "",
     "checkpoint_sync_enabled": "",
     "checkpoint_sync_url": "",
+    "certmanager_test_enabled": "",
+    "tempo_mtls_enabled": "",
 }
 
 

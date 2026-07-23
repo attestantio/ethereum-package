@@ -46,6 +46,7 @@ DEFAULT_VC_IMAGES = {
     "teku": "consensys/teku:latest",
     "grandine": "sifrai/grandine:stable",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -57,6 +58,7 @@ DEFAULT_VC_IMAGES_MINIMAL = {
     "teku": "ethpandaops/teku:master",
     "grandine": "ethpandaops/grandine:develop-minimal",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -126,6 +128,8 @@ def input_parser(plan, input_args):
     result["xatu_sentry_params"] = get_default_xatu_sentry_params()
     result["persistent"] = False
     result["parallel_keystore_generation"] = False
+    result["certmanager_test_enabled"] = False
+    result["tempo_mtls_enabled"] = False
     result["global_tolerations"] = []
     result["global_node_selectors"] = {}
     result["port_publisher"] = get_port_publisher_params("default")
@@ -569,6 +573,21 @@ def input_parser(plan, input_args):
                 remote_signer_max_cpu=participant["remote_signer_max_cpu"],
                 remote_signer_min_mem=participant["remote_signer_min_mem"],
                 remote_signer_max_mem=participant["remote_signer_max_mem"],
+                dirk_image=participant["dirk_image"],
+                dirk_peer_count=participant["dirk_peer_count"],
+                dirk_signing_threshold=participant["dirk_signing_threshold"],
+                dirk_cluster_id=participant["dirk_cluster_id"],
+                vouch_multiinstance_style=participant["vouch_multiinstance_style"],
+                vouch_multiinstance_attester_delay=participant[
+                    "vouch_multiinstance_attester_delay"
+                ],
+                vouch_multiinstance_proposer_delay=participant[
+                    "vouch_multiinstance_proposer_delay"
+                ],
+                vouch_account_start=participant["vouch_account_start"],
+                vouch_account_count=participant["vouch_account_count"],
+                vouch_default_strategies=participant["vouch_default_strategies"],
+                vouch_strategies_yaml=participant["vouch_strategies_yaml"],
                 validator_count=participant["validator_count"],
                 tolerations=participant["tolerations"],
                 node_selectors=participant["node_selectors"],
@@ -906,6 +925,8 @@ def input_parser(plan, input_args):
         ethereum_metrics_exporter_enabled=result["ethereum_metrics_exporter_enabled"],
         xatu_sentry_enabled=result["xatu_sentry_enabled"],
         parallel_keystore_generation=result["parallel_keystore_generation"],
+        certmanager_test_enabled=result["certmanager_test_enabled"],
+        tempo_mtls_enabled=result["tempo_mtls_enabled"],
         disable_peer_scoring=result["disable_peer_scoring"],
         persistent=result["persistent"],
         xatu_sentry_params=struct(
@@ -1644,6 +1665,17 @@ def default_participant():
         "remote_signer_max_cpu": 0,
         "remote_signer_min_mem": 0,
         "remote_signer_max_mem": 0,
+        "dirk_image": "attestant/dirk:1.2.1",
+        "dirk_peer_count": 3,
+        "dirk_signing_threshold": 2,
+        "dirk_cluster_id": None,
+        "vouch_multiinstance_style": "",
+        "vouch_multiinstance_attester_delay": "0s",
+        "vouch_multiinstance_proposer_delay": "0s",
+        "vouch_account_start": None,
+        "vouch_account_count": None,
+        "vouch_default_strategies": False,
+        "vouch_strategies_yaml": "",
         "validator_count": None,
         "node_selectors": {},
         "tolerations": [],
@@ -1858,7 +1890,7 @@ def get_default_tempo_params():
         "max_cpu": 1000,
         "min_mem": 128,
         "max_mem": 2048,
-        "image": "grafana/tempo:latest",
+        "image": "grafana/tempo:2.7.2",
     }
 
 

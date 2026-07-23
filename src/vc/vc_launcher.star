@@ -10,6 +10,7 @@ nimbus = import_module("./nimbus.star")
 prysm = import_module("./prysm.star")
 teku = import_module("./teku.star")
 vero = import_module("./vero.star")
+vouch = import_module("./vouch.star")
 vc_shared = import_module("./shared.star")
 
 
@@ -39,9 +40,16 @@ def get_vc_config(
     vc_index,
     extra_files_artifacts,
     tempo_otlp_grpc_url=None,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
     vc_binary_artifact=None,
+    dirk_context=None,
+    vouch_account_start=None,
+    vouch_account_count=None,
 ):
-    if node_keystore_files == None:
+    if node_keystore_files == None and vc_type != constants.VC_TYPE.vouch:
         return None
 
     tolerations = shared_utils.get_tolerations(
@@ -209,6 +217,35 @@ def get_vc_config(
             vc_index=vc_index,
             extra_files_artifacts=extra_files_artifacts,
             vc_binary_artifact=vc_binary_artifact,
+        )
+    elif vc_type == constants.VC_TYPE.vouch:
+        if dirk_context == None:
+            fail("Vouch requires Dirk to be configured")
+        if keymanager_enabled:
+            fail("Vouch VC doesn't support the Keymanager API")
+        config = vouch.get_config(
+            plan=plan,
+            participant=participant,
+            el_cl_genesis_data=launcher.el_cl_genesis_data,
+            image=image,
+            global_log_level=global_log_level,
+            beacon_http_urls=beacon_http_urls,
+            cl_context=cl_context,
+            dirk_context=dirk_context,
+            full_name=full_name,
+            tolerations=tolerations,
+            node_selectors=node_selectors,
+            port_publisher=port_publisher,
+            vc_index=vc_index,
+            extra_files_artifacts=extra_files_artifacts,
+            vc_binary_artifact=vc_binary_artifact,
+            vouch_account_start=vouch_account_start,
+            vouch_account_count=vouch_account_count,
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_ca_artifact,
         )
     elif vc_type == constants.VC_TYPE.grandine:
         fail("Grandine VC is not yet supported")

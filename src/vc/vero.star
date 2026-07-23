@@ -101,6 +101,7 @@ def get_config(
 
     # Binary injection - override entrypoint and cmd only when binary is provided
     if vc_binary_artifact != None:
+        vc_shared.validate_binary_filename(vc_binary_artifact.filename)
         config_args["entrypoint"] = ["sh", "-c"]
         config_args["cmd"] = [
             "cp /opt/bin/{0} /usr/local/bin/vero && vero ".format(
