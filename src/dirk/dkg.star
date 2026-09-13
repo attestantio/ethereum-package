@@ -198,7 +198,7 @@ def _prepare_ethdo_certs(plan, cert_result):
                 "cp /ethdo-key/ethdo-client.key /out/ethdo.key",
             ]
         ),
-        image="alpine:3.21",
+        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
         files={
             "/ca-cert": cert_result.ca_cert,
             "/ethdo-cert": cert_result.ethdo_client_cert,

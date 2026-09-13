@@ -208,7 +208,7 @@ def _prepare_vouch_certs(
                 "cp /client-key/* /out/client.key",
             ]
         ),
-        image="alpine:3.21",
+        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
         files={
             "/ca-cert": ca_cert_artifact,
             "/client-cert": client_cert_artifact,

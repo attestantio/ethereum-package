@@ -225,7 +225,7 @@ def _prepare_server_certs(plan, service_name, server_cert_artifact, ca_cert_arti
                 "cp /ca-cert/ca.crt /out/ca.crt",
             ]
         ),
-        image="alpine:3.21",
+        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
         files={
             "/server-cert": server_cert_artifact,
             "/ca-cert": ca_cert_artifact,

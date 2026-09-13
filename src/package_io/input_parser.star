@@ -47,7 +47,7 @@ DEFAULT_VC_IMAGES = {
     "teku": "consensys/teku:latest",
     "grandine": "sifrai/grandine:stable",
     "vero": "ghcr.io/serenita-org/vero:latest",
-    "vouch": "attestant/vouch:1.12.1",
+    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -59,7 +59,7 @@ DEFAULT_VC_IMAGES_MINIMAL = {
     "teku": "ethpandaops/teku:master",
     "grandine": "ethpandaops/grandine:develop-minimal",
     "vero": "ghcr.io/serenita-org/vero:latest",
-    "vouch": "attestant/vouch:1.12.1",
+    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -2193,7 +2193,7 @@ def default_participant():
         "remote_signer_max_cpu": 0,
         "remote_signer_min_mem": 0,
         "remote_signer_max_mem": 0,
-        "dirk_image": "attestant/dirk:1.2.1",
+        "dirk_image": "attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0",
         "dirk_peer_count": 3,
         "dirk_signing_threshold": 2,
         "validator_count": None,
