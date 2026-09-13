@@ -24,6 +24,7 @@ def generate_el_cl_genesis_data(
     frames_enabled=False,
     global_tolerations=[],
     global_node_selectors={},
+    additional_validators_artifact=None,
 ):
     files = {}
     shadowfork_file = ""
@@ -69,10 +70,21 @@ def generate_el_cl_genesis_data(
 
     files[GENESIS_VALUES_PATH] = genesis_generation_config_artifact_name
 
+    if additional_validators_artifact != None:
+        files["/additional-validators"] = additional_validators_artifact
+
+    # Build the genesis run command; conditionally export CL_ADDITIONAL_VALIDATORS
+    genesis_run_cmd = "cp /opt/values.env /config/values.env"
+    if additional_validators_artifact != None:
+        genesis_run_cmd += (
+            " && export CL_ADDITIONAL_VALIDATORS=/additional-validators/validators.txt"
+        )
+    genesis_run_cmd += " && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed"
+
     genesis = plan.run_sh(
         name="run-generate-genesis",
         description="Creating genesis",
-        run="cp /opt/values.env /config/values.env && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed",
+        run=genesis_run_cmd,
         image=image,
         files=files,
         store=[
@@ -169,15 +181,15 @@ def new_env_file_for_el_cl_genesis_data(
         "GloasForkEpoch": "{0}".format(network_params.gloas_fork_epoch),
         "HezeForkEpoch": "{0}".format(network_params.heze_fork_epoch),
         "FramesEnabled": "true" if frames_enabled else "false",
-        "GenesisForkVersion": constants.GENESIS_FORK_VERSION,
-        "AltairForkVersion": constants.ALTAIR_FORK_VERSION,
-        "BellatrixForkVersion": constants.BELLATRIX_FORK_VERSION,
-        "CapellaForkVersion": constants.CAPELLA_FORK_VERSION,
-        "DenebForkVersion": constants.DENEB_FORK_VERSION,
-        "ElectraForkVersion": constants.ELECTRA_FORK_VERSION,
-        "FuluForkVersion": constants.FULU_FORK_VERSION,
-        "GloasForkVersion": constants.GLOAS_FORK_VERSION,
-        "HezeForkVersion": constants.HEZE_FORK_VERSION,
+        "GenesisForkVersion": network_params.genesis_fork_version,
+        "AltairForkVersion": network_params.altair_fork_version,
+        "BellatrixForkVersion": network_params.bellatrix_fork_version,
+        "CapellaForkVersion": network_params.capella_fork_version,
+        "DenebForkVersion": network_params.deneb_fork_version,
+        "ElectraForkVersion": network_params.electra_fork_version,
+        "FuluForkVersion": network_params.fulu_fork_version,
+        "GloasForkVersion": network_params.gloas_fork_version,
+        "HezeForkVersion": network_params.heze_fork_version,
         "ShadowForkFile": shadowfork_file,
         "AdditionalValidatorMnemonics": get_additional_mnemonics_json(network_params),
         "MinValidatorWithdrawabilityDelay": network_params.min_validator_withdrawability_delay,
@@ -194,7 +206,9 @@ def new_env_file_for_el_cl_genesis_data(
         "InclusionListSubmissionDueBps": network_params.inclusion_list_submission_due_bps,
         "ProposerInclusionListCutoffBps": network_params.proposer_inclusion_list_cutoff_bps,
         "SamplesPerSlot": network_params.samples_per_slot,
+        "DataColumnSidecarSubnetCount": network_params.data_column_sidecar_subnet_count,
         "CustodyRequirement": network_params.custody_requirement,
+        "ValidatorCustodyRequirement": network_params.validator_custody_requirement,
         "MaxBlobsPerBlockElectra": network_params.max_blobs_per_block_electra,
         "TargetBlobsPerBlockElectra": network_params.target_blobs_per_block_electra,
         "MaxRequestBlocksDeneb": network_params.max_request_blocks_deneb,
