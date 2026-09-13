@@ -11,7 +11,7 @@ PRYSM_PASSWORD_FILEPATH_ON_GENERATOR = "/tmp/prysm-password.txt"
 
 KEYSTORES_GENERATION_TOOL_NAME = "/app/eth2-val-tools"
 
-ETH_VAL_TOOLS_IMAGE = "protolambda/eth2-val-tools:latest"
+ETH_VAL_TOOLS_IMAGE = "protolambda/eth2-val-tools:0.2.2@sha256:46147228f291266148a6a21a2b9541367ad5f70e619d79cd5393459baf539f58"
 
 SUCCESSFUL_EXEC_CMD_EXIT_CODE = 0
 
