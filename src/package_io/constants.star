@@ -36,7 +36,7 @@ VC_TYPE = struct(
 
 REMOTE_SIGNER_TYPE = struct(web3signer="web3signer")
 
-DEFAULT_ETHDO_IMAGE = "wealdtech/ethdo:1.37.4"
+DEFAULT_ETHDO_IMAGE = "wealdtech/ethdo:1.37.4@sha256:4a6cb734e780a89fb710a13d421dd8c9a395004e5e35741b80462937943d0e64"
 
 GLOBAL_LOG_LEVEL = struct(
     info="info",
