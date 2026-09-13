@@ -18,6 +18,7 @@ jobs:
             "./.github/tests/mix-persistence.yaml",
             "./.github/tests/mix-public.yaml",
             "./.github/tests/minimal.yaml",
+            "./.github/tests/vouch-dirk-smoke.yaml",
             "./network_params.yaml",
             "."
           ]
@@ -39,7 +40,12 @@ jobs:
           else
             enclave=$(basename "${{ matrix.file_name }}" .yaml | tr '_.' '--')
             echo "ENCLAVE=$enclave" >> "$GITHUB_ENV"
-            kurtosis run ${{ github.workspace }} --enclave "$enclave" --args-file ${{ matrix.file_name }} --verbosity detailed --image-download always
+            if [[ "${{ matrix.file_name }}" == "./.github/tests/vouch-dirk-smoke.yaml" ]]; then
+              kurtosis run ${{ github.workspace }} --enclave "$enclave" --args-file ${{ matrix.file_name }} --verbosity detailed
+              .github/tests/assert-vouch-dirk-smoke.sh "$enclave"
+            else
+              kurtosis run ${{ github.workspace }} --enclave "$enclave" --args-file ${{ matrix.file_name }} --verbosity detailed --image-download always
+            fi
           fi
       - name: Upload genesis config
         if: matrix.file_name == '.' || matrix.file_name == './network_params.yaml' || matrix.file_name == './.github/tests/minimal.yaml'
