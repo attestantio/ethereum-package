@@ -549,6 +549,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "parallel_keystore_generation": "",
     "disable_peer_scoring": "",
     "persistent": "",
+    "tempo_mtls_enabled": "",
     "mev_type": "",
     "xatu_sentry_enabled": "",
     "apache_port": "",
@@ -678,6 +679,11 @@ def sanity_check(plan, input_args):
                         additional_services, ADDITIONAL_SERVICES_PARAMS
                     )
                 )
+
+    if input_args.get("tempo_mtls_enabled", False) and "tempo" not in input_args.get(
+        "additional_services", []
+    ):
+        fail("tempo_mtls_enabled requires additional_services to include tempo")
 
     # Checks subcategories
     for subcategories in SUBCATEGORY_PARAMS.keys():

@@ -15,6 +15,7 @@ VERBOSITY_LEVELS = {
 VOUCH_CONFIG_MOUNT_DIRPATH_ON_SERVICE = "/config"
 VOUCH_CONFIG_FILENAME = "vouch.yml"
 VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/certs"
+VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/tempo-certs"
 
 VOUCH_STRATEGIES_YAML = """strategies:
   aggregateattestation:
@@ -62,6 +63,10 @@ def get_config(
     tempo_otlp_grpc_url=None,
     vouch_account_start=None,
     vouch_account_count=None,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
         participant.vc_log_level, global_log_level, VERBOSITY_LEVELS
@@ -79,9 +84,18 @@ def get_config(
 
     tracing_yaml = ""
     if tempo_otlp_grpc_url != None:
-        tracing_yaml = "tracing:\n  address: '{0}'\n".format(
-            tempo_otlp_grpc_url.replace("http://", "")
-        )
+        tracing_address = tempo_otlp_grpc_url.replace("http://", "")
+        if tempo_mtls_enabled:
+            tracing_yaml = """tracing:
+  address: '{0}'
+  client-cert: 'file:///tempo-certs/client.crt'
+  client-key: 'file:///tempo-certs/client.key'
+  ca-cert: 'file:///tempo-certs/ca.crt'
+""".format(
+                tracing_address
+            )
+        else:
+            tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
 
     if vouch_account_start != None:
         accounts_yaml = (
@@ -181,6 +195,14 @@ graffiti:
         dirk_context.client_key_artifact,
     )
     files[VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE] = certs_artifact
+    if tempo_mtls_enabled:
+        files[VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE] = _prepare_vouch_tempo_certs(
+            plan,
+            vc_index,
+            tempo_ca_artifact,
+            tempo_client_cert_artifact,
+            tempo_client_key_artifact,
+        )
 
     public_ports = {}
     if port_publisher.vc_enabled:
@@ -287,4 +309,32 @@ def _prepare_vouch_certs(
         wait=None,
     )
 
+    return result.files_artifacts[0]
+
+
+def _prepare_vouch_tempo_certs(
+    plan, vc_index, ca_artifact, client_cert_artifact, client_key_artifact
+):
+    result = plan.run_sh(
+        name="prepare-vouch-tempo-certs-{0}".format(vc_index),
+        description="Preparing Tempo mTLS cert files for Vouch VC {0}".format(vc_index),
+        run="\n".join(
+            [
+                "set -e",
+                "mkdir -p /out",
+                "cp /ca/* /out/ca.crt",
+                "cp /client-cert/* /out/client.crt",
+                "cp /client-key/* /out/client.key",
+                "chmod 0644 /out/ca.crt /out/client.crt /out/client.key",
+            ]
+        ),
+        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+        files={
+            "/ca": ca_artifact,
+            "/client-cert": client_cert_artifact,
+            "/client-key": client_key_artifact,
+        },
+        store=[StoreSpec(src="/out/", name="vouch-tempo-certs-{0}".format(vc_index))],
+        wait=None,
+    )
     return result.files_artifacts[0]
