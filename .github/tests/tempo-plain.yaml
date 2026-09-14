@@ -1,0 +1,30 @@
+participants:
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: lighthouse
+    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    supernode: true
+    validator_count: 1
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: lighthouse
+    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    vc_type: vouch
+    vc_image: attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2
+    use_separate_vc: true
+    vouch_default_strategies: true
+    validator_count: 1
+    dirk_image: attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
+    dirk_peer_count: 3
+    dirk_signing_threshold: 2
+network_params:
+  preset: minimal
+additional_services:
+  - tempo
+  - prometheus_grafana
+prometheus_params:
+  image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
+ethereum_genesis_generator_params:
+  image: ethpandaops/ethereum-genesis-generator:6.2.1@sha256:15bb557cbd6d29fc1b7516a7147326a8c8d3af54f3c3ac534ec8772f6e875256
+grafana_params:
+  image: grafana/grafana:11.5.2@sha256:8b37a2f028f164ce7b9889e1765b9d6ee23fec80f871d156fbf436d6198d32b7

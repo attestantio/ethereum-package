@@ -126,6 +126,7 @@ def input_parser(plan, input_args):
     result["assertoor_params"] = get_default_assertoor_params()
     result["prometheus_params"] = get_default_prometheus_params()
     result["tempo_params"] = get_default_tempo_params()
+    result["tempo_mtls_enabled"] = False
     result["xatu_sentry_params"] = get_default_xatu_sentry_params()
     result["persistent"] = False
     result["parallel_keystore_generation"] = False
@@ -1252,6 +1253,7 @@ def input_parser(plan, input_args):
         parallel_keystore_generation=result["parallel_keystore_generation"],
         disable_peer_scoring=result["disable_peer_scoring"],
         persistent=result["persistent"],
+        tempo_mtls_enabled=result["tempo_mtls_enabled"],
         xatu_sentry_params=struct(
             xatu_sentry_image=result["xatu_sentry_params"]["xatu_sentry_image"],
             xatu_server_addr=result["xatu_sentry_params"]["xatu_server_addr"],
@@ -2484,7 +2486,7 @@ def get_default_tempo_params():
         "max_cpu": 1000,
         "min_mem": 128,
         "max_mem": 2048,
-        "image": "grafana/tempo:latest",
+        "image": "grafana/tempo:2.7.2@sha256:4b0277a9b572a4b1fa43b01468e58911ec214dd69d033f2cd476596d14de9fe3",
     }
 
 
