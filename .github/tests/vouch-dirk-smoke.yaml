@@ -13,6 +13,7 @@ participants:
     vc_type: vouch
     vc_image: attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2
     use_separate_vc: true
+    vouch_default_strategies: true
     validator_count: 1
     dirk_image: attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
     dirk_peer_count: 3
