@@ -65,6 +65,7 @@ def run_dkg_ceremony(
         ),
     ]
 
+    dkg_timeout = "1800s" if validator_count >= 128 else "300s"
     plan.run_sh(
         name="dkg-ceremony{0}".format(
             "-{0}".format(cluster_id) if cluster_id != None else ""
@@ -77,7 +78,7 @@ def run_dkg_ceremony(
         files={
             "/certs": ethdo_certs,
         },
-        wait="300s",
+        wait=dkg_timeout,
     )
 
     return struct(
