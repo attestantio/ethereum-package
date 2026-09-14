@@ -44,6 +44,10 @@ def get_vc_config(
     dirk_context=None,
     vouch_account_start=None,
     vouch_account_count=None,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_ca_artifact=None,
 ):
     if node_keystore_files == None and vc_type != constants.VC_TYPE.vouch:
         return None
@@ -128,6 +132,10 @@ def get_vc_config(
             extra_files_artifacts=extra_files_artifacts,
             vc_binary_artifact=vc_binary_artifact,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_ca_artifact,
             vouch_account_start=vouch_account_start,
             vouch_account_count=vouch_account_count,
         )

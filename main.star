@@ -27,6 +27,7 @@ blockscout = import_module("./src/blockscout/blockscout_launcher.star")
 prometheus = import_module("./src/prometheus/prometheus_launcher.star")
 grafana = import_module("./src/grafana/grafana_launcher.star")
 tempo = import_module("./src/tempo/tempo_launcher.star")
+tempo_certs = import_module("./src/tempo/tempo_certs.star")
 commit_boost_mev_boost = import_module(
     "./src/mev/commit-boost/mev_boost/mev_boost_launcher.star"
 )
@@ -475,6 +476,20 @@ def run(plan, args={}):
 
     tempo_otlp_grpc_url = None
     tempo_query_url = None
+    tempo_mtls_enabled = (
+        args_with_right_defaults.tempo_mtls_enabled
+        and "tempo" in args_with_right_defaults.additional_services
+    )
+    tempo_server_cert_artifact = None
+    tempo_client_ca_artifact = None
+    tempo_client_cert_artifact = None
+    tempo_client_key_artifact = None
+    if tempo_mtls_enabled:
+        tempo_cert_result = tempo_certs.generate_tempo_certs(plan)
+        tempo_server_cert_artifact = tempo_cert_result.server_cert_artifact
+        tempo_client_ca_artifact = tempo_cert_result.ca_artifact
+        tempo_client_cert_artifact = tempo_cert_result.client_cert_artifact
+        tempo_client_key_artifact = tempo_cert_result.client_key_artifact
     if "tempo" in args_with_right_defaults.additional_services:
         tempo_otlp_grpc_url = "http://{}:{}".format(
             tempo.SERVICE_NAME, tempo.OTLP_GRPC_PORT_NUMBER
@@ -543,6 +558,10 @@ def run(plan, args={}):
         otel_otlp_grpc_url,
         otel_otlp_http_traces_url,
         detected_backend,
+        tempo_mtls_enabled=tempo_mtls_enabled,
+        tempo_client_cert_artifact=tempo_client_cert_artifact,
+        tempo_client_key_artifact=tempo_client_key_artifact,
+        tempo_client_ca_artifact=tempo_client_ca_artifact,
     )
 
     if bootnodoor_enabled:
@@ -1267,6 +1286,9 @@ def run(plan, args={}):
                 args_with_right_defaults.tempo_params,
                 args_with_right_defaults.port_publisher,
                 index,
+                tempo_mtls_enabled=tempo_mtls_enabled,
+                tempo_server_cert_artifact=tempo_server_cert_artifact,
+                tempo_client_ca_artifact=tempo_client_ca_artifact,
             )
             plan.print("Successfully launched tempo")
         elif additional_service == "prometheus_grafana":

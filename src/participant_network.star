@@ -58,6 +58,10 @@ def launch_participant_network(
     otel_otlp_grpc_url,
     otel_otlp_http_traces_url,
     backend,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_client_ca_artifact=None,
 ):
     network_id = network_params.network_id
     num_participants = len(args_with_right_defaults.participants)
@@ -224,7 +228,7 @@ def launch_participant_network(
             vouch_client_name="vouch-client",
             tolerations=global_tolerations,
             node_selectors=global_node_selectors,
-            tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url if not tempo_mtls_enabled else None,
             cluster_prefix=prefix,
         )
         dirk_dkg.run_dkg_ceremony(
@@ -839,6 +843,10 @@ def launch_participant_network(
             vc_index=current_vc_index,
             extra_files_artifacts=extra_files_artifacts,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_client_ca_artifact,
             otel_otlp_grpc_url=otel_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
             dirk_context=cluster_dirk_contexts[participant_cluster_ids[index]]

@@ -52,6 +52,7 @@ unlocker:
     - secret
 permissions:
 {{ .Permissions }}
+{{ .TracingConfig }}
 """
 
 
