@@ -869,6 +869,18 @@ def input_parser(plan, input_args):
                 dirk_image=participant["dirk_image"],
                 dirk_peer_count=participant["dirk_peer_count"],
                 dirk_signing_threshold=participant["dirk_signing_threshold"],
+                dirk_cluster_id=participant["dirk_cluster_id"],
+                vouch_multiinstance_style=participant["vouch_multiinstance_style"],
+                vouch_multiinstance_attester_delay=participant[
+                    "vouch_multiinstance_attester_delay"
+                ],
+                vouch_multiinstance_proposer_delay=participant[
+                    "vouch_multiinstance_proposer_delay"
+                ],
+                vouch_account_start=participant["vouch_account_start"],
+                vouch_account_count=participant["vouch_account_count"],
+                vouch_default_strategies=participant["vouch_default_strategies"],
+                vouch_strategies_yaml=participant["vouch_strategies_yaml"],
                 validator_count=participant["validator_count"],
                 tolerations=participant["tolerations"],
                 node_selectors=participant["node_selectors"],
@@ -1724,11 +1736,50 @@ def parse_network_params(plan, input_args):
                     )
                 )
 
+        vouch_fields_set = (
+            participant["dirk_cluster_id"] != None
+            or participant["vouch_multiinstance_style"] != ""
+            or participant["vouch_multiinstance_attester_delay"] != "0s"
+            or participant["vouch_multiinstance_proposer_delay"] != "0s"
+            or participant["vouch_account_start"] != None
+            or participant["vouch_account_count"] != None
+            or participant["vouch_default_strategies"]
+            or participant["vouch_strategies_yaml"] != ""
+        )
+        if participant["vc_type"] != constants.VC_TYPE.vouch:
+            if vouch_fields_set:
+                fail("Vouch configuration fields require vc_type: vouch")
+        else:
+            if participant["vouch_multiinstance_style"] not in ["", "static-delay"]:
+                fail(
+                    "Vouch participant has invalid vouch_multiinstance_style '{0}'; expected '' or 'static-delay'".format(
+                        participant["vouch_multiinstance_style"]
+                    )
+                )
+            has_account_start = participant["vouch_account_start"] != None
+            has_account_count = participant["vouch_account_count"] != None
+            if has_account_start != has_account_count:
+                fail("Vouch account start and count must be supplied together")
+            if has_account_start:
+                if participant["vouch_account_start"] < 0:
+                    fail("Vouch account start must be non-negative")
+                if participant["vouch_account_count"] <= 0:
+                    fail("Vouch account count must be positive")
+
         validator_count = participant["validator_count"]
         if validator_count == None:
             participant["validator_count"] = result["network_params"][
                 "num_validator_keys_per_node"
             ]
+
+        if (
+            participant["vc_type"] == constants.VC_TYPE.vouch
+            and participant["validator_count"] == 0
+        ):
+            if participant["dirk_cluster_id"] == None:
+                fail("Passive Vouch requires an explicit dirk_cluster_id")
+            if participant["vouch_account_start"] == None:
+                fail("Passive Vouch requires an explicit account range")
 
         actual_num_validators += participant["validator_count"]
 
@@ -2196,6 +2247,14 @@ def default_participant():
         "dirk_image": "attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0",
         "dirk_peer_count": 3,
         "dirk_signing_threshold": 2,
+        "dirk_cluster_id": None,
+        "vouch_multiinstance_style": "",
+        "vouch_multiinstance_attester_delay": "0s",
+        "vouch_multiinstance_proposer_delay": "0s",
+        "vouch_account_start": None,
+        "vouch_account_count": None,
+        "vouch_default_strategies": False,
+        "vouch_strategies_yaml": "",
         "validator_count": None,
         "node_selectors": {},
         "tolerations": [],

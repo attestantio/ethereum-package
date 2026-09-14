@@ -733,6 +733,12 @@ def launch_participant_network(
             otel_otlp_grpc_url=otel_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
             dirk_context=dirk_ctx if vc_type == constants.VC_TYPE.vouch else None,
+            vouch_account_start=participant.vouch_account_start
+            if vc_type == constants.VC_TYPE.vouch
+            else None,
+            vouch_account_count=participant.vouch_account_count
+            if vc_type == constants.VC_TYPE.vouch
+            else None,
         )
         if vc_service_config == None:
             continue
