@@ -3,7 +3,9 @@ OPENSSL_IMAGE = "alpine/openssl:3.5.5@sha256:7a1465c710d66ef753236a2d96c9c41f1fb
 CERT_VALIDITY_DAYS = 1825
 
 
-def generate_certs(plan, dirk_service_names, vouch_client_name="vouch-client"):
+def generate_certs(
+    plan, dirk_service_names, vouch_client_name="vouch-client", cluster_id=None
+):
     """Generate all TLS certificates needed for Dirk <-> Vouch communication.
 
     Args:
@@ -15,17 +17,18 @@ def generate_certs(plan, dirk_service_names, vouch_client_name="vouch-client"):
         A struct with file artifact UUIDs for all generated certs.
     """
     ethdo_client_name = "ethdo-client"
+    prefix = "dirk-{0}".format(cluster_id) if cluster_id != None else "dirk"
 
     # Build the list of StoreSpec entries we will collect
     store_specs = [
-        StoreSpec(src="/certs/ca/ca.crt", name="dirk-ca-cert"),
+        StoreSpec(src="/certs/ca/ca.crt", name="{0}-ca-cert".format(prefix)),
     ]
 
     for name in dirk_service_names:
         store_specs.append(
             StoreSpec(
                 src="/certs/servers/{0}/".format(name),
-                name="dirk-server-cert-{0}".format(name),
+                name="{0}-server-cert-{1}".format(prefix, name),
             )
         )
 
@@ -33,19 +36,19 @@ def generate_certs(plan, dirk_service_names, vouch_client_name="vouch-client"):
         [
             StoreSpec(
                 src="/certs/clients/{0}/{0}.crt".format(vouch_client_name),
-                name="dirk-vouch-client-cert",
+                name="{0}-vouch-client-cert".format(prefix),
             ),
             StoreSpec(
                 src="/certs/clients/{0}/{0}.key".format(vouch_client_name),
-                name="dirk-vouch-client-key",
+                name="{0}-vouch-client-key".format(prefix),
             ),
             StoreSpec(
                 src="/certs/clients/{0}/{0}.crt".format(ethdo_client_name),
-                name="dirk-ethdo-client-cert",
+                name="{0}-ethdo-client-cert".format(prefix),
             ),
             StoreSpec(
                 src="/certs/clients/{0}/{0}.key".format(ethdo_client_name),
-                name="dirk-ethdo-client-key",
+                name="{0}-ethdo-client-key".format(prefix),
             ),
         ]
     )
@@ -56,8 +59,10 @@ def generate_certs(plan, dirk_service_names, vouch_client_name="vouch-client"):
     )
 
     result = plan.run_sh(
-        name="generate-dirk-certs",
-        description="Generating TLS certificates for Dirk cluster",
+        name="generate-{0}-certs".format(prefix),
+        description="Generating TLS certificates for Dirk cluster{0}".format(
+            " {0}".format(cluster_id) if cluster_id != None else ""
+        ),
         run=script,
         image=OPENSSL_IMAGE,
         store=store_specs,
