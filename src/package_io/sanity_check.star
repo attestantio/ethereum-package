@@ -557,6 +557,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "global_tolerations": "",
     "global_node_selectors": "",
     "keymanager_enabled": "",
+    "certmanager_test_enabled": "",
     "checkpoint_sync_enabled": "",
     "checkpoint_sync_url": "",
 }
@@ -684,6 +685,31 @@ def sanity_check(plan, input_args):
         "additional_services", []
     ):
         fail("tempo_mtls_enabled requires additional_services to include tempo")
+
+    if input_args.get("certmanager_test_enabled", False):
+        participants = input_args.get("participants", [])
+        vouch_participants = [
+            participant
+            for participant in participants
+            if participant.get("vc_type") == "vouch"
+        ]
+        if not vouch_participants:
+            fail("certmanager_test_enabled requires at least one Vouch participant")
+        for participant in vouch_participants:
+            for field in ["vc_image", "dirk_image"]:
+                image = participant.get(field, "")
+                if "@sha256:" not in image:
+                    fail(
+                        "certmanager_test_enabled requires digest-qualified {0}".format(
+                            field
+                        )
+                    )
+        if input_args.get(
+            "tempo_mtls_enabled", False
+        ) and "tempo" not in input_args.get("additional_services", []):
+            fail(
+                "certmanager trace assertions require tempo when tempo mTLS is enabled"
+            )
 
     # Checks subcategories
     for subcategories in SUBCATEGORY_PARAMS.keys():

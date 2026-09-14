@@ -61,6 +61,7 @@ disruptoor = import_module("./src/disruptoor/disruptoor_launcher.star")
 slashoor = import_module("./src/slashoor/slashoor_launcher.star")
 zkboost = import_module("./src/zkboost/zkboost_launcher.star")
 trueblocks = import_module("./src/trueblocks/trueblocks_launcher.star")
+certmanager_test = import_module("./src/certmanager_test/certmanager_test.star")
 
 GRAFANA_USER = "admin"
 GRAFANA_PASSWORD = "admin"
@@ -541,6 +542,7 @@ def run(plan, args={}):
         network_id,
         osaka_time,
         shadowfork_block_height,
+        certmanager_cluster_info,
     ) = participant_network.launch_participant_network(
         plan,
         args_with_right_defaults,
@@ -1462,6 +1464,15 @@ def run(plan, args={}):
             otel_clickhouse_port,
         )
         plan.print("Successfully launched grafana")
+
+    if args_with_right_defaults.certmanager_test_enabled:
+        certmanager_test.run_certmanager_tests(
+            plan,
+            certmanager_cluster_info,
+            all_cl_contexts[0].beacon_service_name,
+            tempo_query_url=tempo_query_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+        )
 
     if args_with_right_defaults.wait_for_finalization:
         plan.print("Waiting for the first finalized epoch")

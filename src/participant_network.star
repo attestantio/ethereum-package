@@ -200,6 +200,7 @@ def launch_participant_network(
 
     cluster_dirk_contexts = {}
     cluster_validator_artifacts = []
+    certmanager_cluster_info = {}
     for cluster_id in cluster_ids:
         cluster = cluster_defs[cluster_id]
         if cluster.peer_count < 1:
@@ -263,6 +264,17 @@ def launch_participant_network(
             threshold=cluster.threshold,
             peer_count=cluster.peer_count,
         )
+        if args_with_right_defaults.certmanager_test_enabled:
+            certmanager_cluster_info[cluster_id] = struct(
+                dirk_service_names=service_names,
+                vouch_service_names=[],
+                active_vouch_service_names=[],
+                ca_cert_artifact=cert_result.ca_cert,
+                client_cert_artifact=cert_result.vouch_client_cert,
+                client_key_artifact=cert_result.vouch_client_key,
+                dirk_metrics_port=dirk_launcher.DIRK_METRICS_PORT_NUM,
+                vouch_metrics_port=vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
+            )
 
     if len(cluster_validator_artifacts) == 1:
         dkg_validators_artifact = cluster_validator_artifacts[0]
@@ -867,6 +879,7 @@ def launch_participant_network(
             "client_name": vc_type,
             "participant_index": index,
             "participant": participant,
+            "cluster_id": participant_cluster_ids.get(index),
         }
         current_vc_index += 1
 
@@ -967,6 +980,21 @@ def launch_participant_network(
 
         all_participants.append(participant_entry)
 
+    if args_with_right_defaults.certmanager_test_enabled:
+        for service_name, info in vc_service_info.items():
+            if info["client_name"] != constants.VC_TYPE.vouch:
+                continue
+            cluster_id = info["cluster_id"]
+            if cluster_id not in certmanager_cluster_info:
+                continue
+            certmanager_cluster_info[cluster_id].vouch_service_names.append(
+                service_name
+            )
+            if info["participant"].vouch_multiinstance_attester_delay == "0s":
+                certmanager_cluster_info[cluster_id].active_vouch_service_names.append(
+                    service_name
+                )
+
     return (
         all_participants,
         final_genesis_timestamp,
@@ -975,4 +1003,5 @@ def launch_participant_network(
         network_id,
         el_cl_data.osaka_time,
         el_cl_data.shadowfork_block_height,
+        certmanager_cluster_info,
     )
