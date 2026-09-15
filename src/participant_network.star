@@ -35,6 +35,11 @@ blobber_launcher = import_module("./blobber/blobber_launcher.star")
 cl_context_module = import_module("./cl/cl_context.star")
 bootnodoor_launcher = import_module("./bootnodoor/bootnodoor_launcher.star")
 
+dirk_launcher = import_module("./dirk/dirk_launcher.star")
+dirk_certs = import_module("./dirk/certs.star")
+dirk_dkg = import_module("./dirk/dkg.star")
+dirk_context_module = import_module("./dirk/dirk_context.star")
+
 
 def launch_participant_network(
     plan,
@@ -53,12 +58,255 @@ def launch_participant_network(
     otel_otlp_grpc_url,
     otel_otlp_http_traces_url,
     backend,
+    tempo_mtls_enabled=False,
+    tempo_client_cert_artifact=None,
+    tempo_client_key_artifact=None,
+    tempo_client_ca_artifact=None,
 ):
     network_id = network_params.network_id
     num_participants = len(args_with_right_defaults.participants)
     total_number_of_validator_keys = 0
     latest_block = ""
     global_other_index = 0
+
+    # Phase 0: create Dirk clusters and their DKG validators before genesis.
+    dkg_validators_artifact = None
+    cluster_defs = {}
+    cluster_ids = []
+    participant_cluster_ids = {}
+    vouch_account_ranges = {}
+    active_vouch_indices = []
+    explicit_active_ids = {}
+    implicit_active_indices = []
+    next_account = 0
+
+    for index, participant in enumerate(args_with_right_defaults.participants):
+        if participant.vc_type != constants.VC_TYPE.vouch:
+            continue
+        if participant.validator_count > 0:
+            active_vouch_indices.append(index)
+            cluster_id = participant.dirk_cluster_id
+            if cluster_id == None:
+                implicit_active_indices.append(index)
+            else:
+                if (
+                    len(cluster_id) != 1
+                    or cluster_id not in "abcdefghijklmnopqrstuvwxyz0123456789"
+                ):
+                    fail(
+                        "dirk_cluster_id must be one lowercase alphanumeric character, got '{0}'".format(
+                            cluster_id
+                        )
+                    )
+                if cluster_id in explicit_active_ids:
+                    fail(
+                        "dirk_cluster_id '{0}' already defined by another active Vouch participant".format(
+                            cluster_id
+                        )
+                    )
+                explicit_active_ids[cluster_id] = True
+            participant_cluster_ids[index] = cluster_id
+            vouch_account_ranges[index] = struct(
+                start=next_account, count=participant.validator_count
+            )
+            next_account += participant.validator_count
+        elif participant.validator_count == 0:
+            participant_cluster_ids[index] = participant.dirk_cluster_id
+            vouch_account_ranges[index] = struct(
+                start=participant.vouch_account_start,
+                count=participant.vouch_account_count,
+            )
+
+    if len(implicit_active_indices) > 0 and len(active_vouch_indices) != 1:
+        fail("Multiple active Vouch creators without dirk_cluster_id are not supported")
+
+    for index in active_vouch_indices:
+        participant = args_with_right_defaults.participants[index]
+        cluster_id = participant_cluster_ids[index]
+        if cluster_id == None:
+            cluster_id = ""
+            participant_cluster_ids[index] = cluster_id
+        cluster_defs[cluster_id] = struct(
+            peer_count=participant.dirk_peer_count,
+            threshold=participant.dirk_signing_threshold,
+            image=participant.dirk_image,
+            validator_count=participant.validator_count,
+            account_start=vouch_account_ranges[index].start,
+        )
+        cluster_ids.append(cluster_id)
+
+    for index, cluster_id in participant_cluster_ids.items():
+        participant = args_with_right_defaults.participants[index]
+        if participant.validator_count != 0:
+            continue
+        if cluster_id == None or cluster_id == "":
+            fail("Passive Vouch requires an explicit dirk_cluster_id")
+        if (
+            len(cluster_id) != 1
+            or cluster_id not in "abcdefghijklmnopqrstuvwxyz0123456789"
+        ):
+            fail(
+                "dirk_cluster_id must be one lowercase alphanumeric character, got '{0}'".format(
+                    cluster_id
+                )
+            )
+        if cluster_id not in cluster_defs:
+            fail(
+                "Vouch participant #{0} references missing dirk_cluster_id '{1}'".format(
+                    index + 1, cluster_id
+                )
+            )
+
+    for index, account_range in vouch_account_ranges.items():
+        cluster_id = participant_cluster_ids[index]
+        cluster = cluster_defs[cluster_id]
+        if (
+            account_range.start < cluster.account_start
+            or account_range.start + account_range.count
+            > cluster.account_start + cluster.validator_count
+        ):
+            fail(
+                "Vouch participant #{0}: account range [{1},{2}) is outside cluster '{3}' bounds [{4},{5})".format(
+                    index + 1,
+                    account_range.start,
+                    account_range.start + account_range.count,
+                    cluster_id,
+                    cluster.account_start,
+                    cluster.account_start + cluster.validator_count,
+                )
+            )
+
+    for i, first_range in vouch_account_ranges.items():
+        for j, second_range in vouch_account_ranges.items():
+            if i >= j or participant_cluster_ids[i] != participant_cluster_ids[j]:
+                continue
+            if (
+                first_range.start < second_range.start + second_range.count
+                and second_range.start < first_range.start + first_range.count
+            ):
+                first = args_with_right_defaults.participants[i]
+                second = args_with_right_defaults.participants[j]
+                if (
+                    first_range.start != second_range.start
+                    or first_range.count != second_range.count
+                    or first.vouch_multiinstance_style != "static-delay"
+                    or second.vouch_multiinstance_style != "static-delay"
+                ):
+                    fail(
+                        "Vouch participants #{0} and #{1} have an invalid overlapping account range".format(
+                            i + 1, j + 1
+                        )
+                    )
+
+    cluster_dirk_contexts = {}
+    cluster_validator_artifacts = []
+    certmanager_cluster_info = {}
+    for cluster_id in cluster_ids:
+        cluster = cluster_defs[cluster_id]
+        if cluster.peer_count < 1:
+            fail(
+                "dirk_peer_count must be at least 1, got {0}".format(cluster.peer_count)
+            )
+        if cluster.threshold < 1 or cluster.threshold > cluster.peer_count:
+            fail(
+                "dirk_signing_threshold ({0}) must be between 1 and dirk_peer_count ({1})".format(
+                    cluster.threshold, cluster.peer_count
+                )
+            )
+        prefix = "dirk-{0}".format(cluster_id) if cluster_id != "" else "dirk"
+        service_names = [
+            "{0}-{1}".format(prefix, i) for i in range(1, cluster.peer_count + 1)
+        ]
+        cert_result = dirk_certs.generate_certs(
+            plan, service_names, cluster_id=cluster_id if cluster_id != "" else None
+        )
+        dirk_launcher.launch_dirk_cluster(
+            plan,
+            dirk_image=cluster.image,
+            peer_count=cluster.peer_count,
+            signing_threshold=cluster.threshold,
+            cert_result=cert_result,
+            vouch_client_name="vouch-client",
+            tolerations=global_tolerations,
+            node_selectors=global_node_selectors,
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url if not tempo_mtls_enabled else None,
+            cluster_prefix=prefix,
+        )
+        dirk_dkg.run_dkg_ceremony(
+            plan,
+            dirk_service_names=service_names,
+            cert_result=cert_result,
+            validator_count=cluster.validator_count,
+            signing_threshold=cluster.threshold,
+            peer_count=cluster.peer_count,
+            account_start=cluster.account_start,
+            cluster_id=cluster_id if cluster_id != "" else None,
+        )
+        cluster_validator_artifacts.append(
+            dirk_dkg.extract_dkg_validators_file(
+                plan,
+                dirk_service_names=service_names,
+                cert_result=cert_result,
+                validator_count=cluster.validator_count,
+                account_start=cluster.account_start,
+                cluster_id=cluster_id if cluster_id != "" else None,
+            )
+        )
+        cluster_dirk_contexts[cluster_id] = dirk_context_module.new_dirk_context(
+            endpoints=[
+                "{0}:{1}".format(name, dirk_launcher.DIRK_GRPC_PORT_NUM)
+                for name in service_names
+            ],
+            ca_cert_artifact=cert_result.ca_cert,
+            client_cert_artifact=cert_result.vouch_client_cert,
+            client_key_artifact=cert_result.vouch_client_key,
+            wallet_name="DistributedWallet",
+            threshold=cluster.threshold,
+            peer_count=cluster.peer_count,
+        )
+        if args_with_right_defaults.certmanager_test_enabled:
+            certmanager_cluster_info[cluster_id] = struct(
+                dirk_service_names=service_names,
+                vouch_service_names=[],
+                active_vouch_service_names=[],
+                ca_cert_artifact=cert_result.ca_cert,
+                client_cert_artifact=cert_result.vouch_client_cert,
+                client_key_artifact=cert_result.vouch_client_key,
+                dirk_metrics_port=dirk_launcher.DIRK_METRICS_PORT_NUM,
+                vouch_metrics_port=vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
+            )
+
+    if len(cluster_validator_artifacts) == 1:
+        dkg_validators_artifact = cluster_validator_artifacts[0]
+    elif len(cluster_validator_artifacts) > 1:
+        files = {}
+        merge = [
+            "set -e",
+            "mkdir -p /out",
+            'echo "# DKG validator pubkeys for genesis" > /out/validators.txt',
+        ]
+        for index, artifact in enumerate(cluster_validator_artifacts):
+            mount = "/cluster-{0}".format(index)
+            files[mount] = artifact
+            merge.append(
+                "tail -n +2 {0}/validators.txt >> /out/validators.txt".format(mount)
+            )
+        merge.extend(
+            [
+                "test $(grep -c '^0x' /out/validators.txt) -eq $(grep '^0x' /out/validators.txt | cut -d: -f1 | sort -u | wc -l)"
+            ]
+        )
+        dkg_validators_artifact = plan.run_sh(
+            name="merge-dkg-validators",
+            description="Merging DKG validators",
+            run="\n".join(merge),
+            image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+            files=files,
+            store=[StoreSpec(src="/out/", name="dkg-validators-file")],
+            wait=None,
+        ).files_artifacts[0]
+
+    # Phase 1: Genesis generation
     if (
         network_params.network == constants.NETWORK_NAME.kurtosis
         or constants.NETWORK_NAME.shadowfork in network_params.network
@@ -120,6 +368,7 @@ def launch_participant_network(
             frames_enabled,
             global_tolerations,
             global_node_selectors,
+            additional_validators_artifact=dkg_validators_artifact,
         )
     elif network_params.network.startswith(constants.NETWORK_NAME.remote_enclave):
         # We are syncing from another running kurtosis enclave
@@ -133,6 +382,7 @@ def launch_participant_network(
             network_params.network,
             global_tolerations,
             global_node_selectors,
+            additional_validators_artifact=dkg_validators_artifact,
         )
     elif network_params.network == constants.NETWORK_NAME.ephemery:
         # We are running an ephemery network
@@ -372,6 +622,7 @@ def launch_participant_network(
 
     vc_service_configs = {}
     vc_service_info = {}
+
     for index, participant in enumerate(args_with_right_defaults.participants):
         el_type = participant.el_type
         cl_type = participant.cl_type
@@ -497,7 +748,7 @@ def launch_participant_network(
         )
 
         vc_keystores = None
-        if participant.validator_count != 0:
+        if participant.validator_count != 0 and vc_type != constants.VC_TYPE.vouch:
             vc_keystores = preregistered_validator_keys_for_nodes[index]
 
         vc_context = None
@@ -604,8 +855,21 @@ def launch_participant_network(
             vc_index=current_vc_index,
             extra_files_artifacts=extra_files_artifacts,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+            tempo_client_cert_artifact=tempo_client_cert_artifact,
+            tempo_client_key_artifact=tempo_client_key_artifact,
+            tempo_ca_artifact=tempo_client_ca_artifact,
             otel_otlp_grpc_url=otel_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
+            dirk_context=cluster_dirk_contexts[participant_cluster_ids[index]]
+            if vc_type == constants.VC_TYPE.vouch
+            else None,
+            vouch_account_start=vouch_account_ranges[index].start
+            if vc_type == constants.VC_TYPE.vouch
+            else None,
+            vouch_account_count=vouch_account_ranges[index].count
+            if vc_type == constants.VC_TYPE.vouch
+            else None,
         )
         if vc_service_config == None:
             continue
@@ -615,6 +879,7 @@ def launch_participant_network(
             "client_name": vc_type,
             "participant_index": index,
             "participant": participant,
+            "cluster_id": participant_cluster_ids.get(index),
         }
         current_vc_index += 1
 
@@ -715,6 +980,21 @@ def launch_participant_network(
 
         all_participants.append(participant_entry)
 
+    if args_with_right_defaults.certmanager_test_enabled:
+        for service_name, info in vc_service_info.items():
+            if info["client_name"] != constants.VC_TYPE.vouch:
+                continue
+            cluster_id = info["cluster_id"]
+            if cluster_id not in certmanager_cluster_info:
+                continue
+            certmanager_cluster_info[cluster_id].vouch_service_names.append(
+                service_name
+            )
+            if info["participant"].vouch_multiinstance_attester_delay == "0s":
+                certmanager_cluster_info[cluster_id].active_vouch_service_names.append(
+                    service_name
+                )
+
     return (
         all_participants,
         final_genesis_timestamp,
@@ -723,4 +1003,5 @@ def launch_participant_network(
         network_id,
         el_cl_data.osaka_time,
         el_cl_data.shadowfork_block_height,
+        certmanager_cluster_info,
     )

@@ -1,0 +1,74 @@
+participants:
+  # Active Vouch cluster A, accounts 0-127.
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: lighthouse
+    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    cl_extra_params: ['--subscribe-all-subnets']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 128
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: a
+    vouch_multiinstance_style: 'static-delay'
+    vc_image: localhost:5001/attestant/vouch@sha256:048a2384bf40dc6436b23a876e2f227dc70345b6bccbd7fa76a4d01182e4df5e
+    dirk_image: localhost:5001/attestant/dirk@sha256:0069f3212131492a027d63ddd599bbf50641a28c5cb0a5bafa23b0714aa733fc
+    vc_beacon_node_indices: [0, 1, 2, 3]
+
+  # Passive Vouch instance sharing cluster A's account range.
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: lighthouse
+    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    cl_extra_params: ['--subscribe-all-subnets']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 0
+    dirk_cluster_id: a
+    vouch_multiinstance_style: 'static-delay'
+    vouch_multiinstance_attester_delay: '4s'
+    vouch_multiinstance_proposer_delay: '2s'
+    vouch_account_start: 0
+    vouch_account_count: 128
+    vc_image: localhost:5001/attestant/vouch@sha256:048a2384bf40dc6436b23a876e2f227dc70345b6bccbd7fa76a4d01182e4df5e
+    dirk_image: localhost:5001/attestant/dirk@sha256:0069f3212131492a027d63ddd599bbf50641a28c5cb0a5bafa23b0714aa733fc
+    vc_beacon_node_indices: [0, 1, 2, 3]
+
+  # Active Vouch cluster B, accounts 128-255.
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: prysm
+    cl_image: registry-1.docker.io/ethpandaops/prysm-beacon-chain@sha256:c91dbecf1378e0e54c057de64e8968cadb5ca715a7b19be4b3aab3dd34b4bd1c
+    cl_extra_params: ['--subscribe-all-subnets=true']
+    vc_type: vouch
+    use_separate_vc: true
+    validator_count: 128
+    dirk_peer_count: 5
+    dirk_signing_threshold: 3
+    dirk_cluster_id: b
+    vc_image: localhost:5001/attestant/vouch@sha256:048a2384bf40dc6436b23a876e2f227dc70345b6bccbd7fa76a4d01182e4df5e
+    dirk_image: localhost:5001/attestant/dirk@sha256:0069f3212131492a027d63ddd599bbf50641a28c5cb0a5bafa23b0714aa733fc
+    vc_beacon_node_indices: [0, 1, 2, 3]
+
+  # Lodestar is the PeerDAS supernode and the fourth beacon provider.
+  - el_type: geth
+    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    cl_type: lodestar
+    cl_image: registry-1.docker.io/ethpandaops/lodestar@sha256:c994eb1b26c0d3e51b4e00e47a10cf74fd5bf45d13070eefe2546f6198812874
+    validator_count: 0
+    supernode: true
+network_params:
+  preset: mainnet
+  seconds_per_slot: 12
+  num_validator_keys_per_node: 128
+  electra_fork_epoch: 0
+  fulu_fork_epoch: 0
+
+certmanager_test_enabled: true
+additional_services:
+  - tempo
+port_publisher:
+  additional_services:
+    enabled: true
+    public_port_start: 9100

@@ -47,6 +47,7 @@ DEFAULT_VC_IMAGES = {
     "teku": "consensys/teku:latest",
     "grandine": "sifrai/grandine:stable",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -58,6 +59,7 @@ DEFAULT_VC_IMAGES_MINIMAL = {
     "teku": "ethpandaops/teku:master",
     "grandine": "ethpandaops/grandine:develop-minimal",
     "vero": "ghcr.io/serenita-org/vero:latest",
+    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -124,6 +126,8 @@ def input_parser(plan, input_args):
     result["assertoor_params"] = get_default_assertoor_params()
     result["prometheus_params"] = get_default_prometheus_params()
     result["tempo_params"] = get_default_tempo_params()
+    result["tempo_mtls_enabled"] = False
+    result["certmanager_test_enabled"] = False
     result["xatu_sentry_params"] = get_default_xatu_sentry_params()
     result["persistent"] = False
     result["parallel_keystore_generation"] = False
@@ -864,6 +868,21 @@ def input_parser(plan, input_args):
                 remote_signer_max_cpu=participant["remote_signer_max_cpu"],
                 remote_signer_min_mem=participant["remote_signer_min_mem"],
                 remote_signer_max_mem=participant["remote_signer_max_mem"],
+                dirk_image=participant["dirk_image"],
+                dirk_peer_count=participant["dirk_peer_count"],
+                dirk_signing_threshold=participant["dirk_signing_threshold"],
+                dirk_cluster_id=participant["dirk_cluster_id"],
+                vouch_multiinstance_style=participant["vouch_multiinstance_style"],
+                vouch_multiinstance_attester_delay=participant[
+                    "vouch_multiinstance_attester_delay"
+                ],
+                vouch_multiinstance_proposer_delay=participant[
+                    "vouch_multiinstance_proposer_delay"
+                ],
+                vouch_account_start=participant["vouch_account_start"],
+                vouch_account_count=participant["vouch_account_count"],
+                vouch_default_strategies=participant["vouch_default_strategies"],
+                vouch_strategies_yaml=participant["vouch_strategies_yaml"],
                 validator_count=participant["validator_count"],
                 tolerations=participant["tolerations"],
                 node_selectors=participant["node_selectors"],
@@ -909,6 +928,15 @@ def input_parser(plan, input_args):
             genesis_delay=result["network_params"]["genesis_delay"],
             genesis_time=result["network_params"]["genesis_time"],
             genesis_gaslimit=result["network_params"]["genesis_gaslimit"],
+            genesis_fork_version=result["network_params"]["genesis_fork_version"],
+            altair_fork_version=result["network_params"]["altair_fork_version"],
+            bellatrix_fork_version=result["network_params"]["bellatrix_fork_version"],
+            capella_fork_version=result["network_params"]["capella_fork_version"],
+            deneb_fork_version=result["network_params"]["deneb_fork_version"],
+            electra_fork_version=result["network_params"]["electra_fork_version"],
+            fulu_fork_version=result["network_params"]["fulu_fork_version"],
+            gloas_fork_version=result["network_params"]["gloas_fork_version"],
+            heze_fork_version=result["network_params"]["heze_fork_version"],
             max_per_epoch_activation_churn_limit=result["network_params"][
                 "max_per_epoch_activation_churn_limit"
             ],
@@ -963,7 +991,13 @@ def input_parser(plan, input_args):
             force_snapshot_sync=result["network_params"]["force_snapshot_sync"],
             shadowfork_block_height=result["network_params"]["shadowfork_block_height"],
             samples_per_slot=result["network_params"]["samples_per_slot"],
+            data_column_sidecar_subnet_count=result["network_params"][
+                "data_column_sidecar_subnet_count"
+            ],
             custody_requirement=result["network_params"]["custody_requirement"],
+            validator_custody_requirement=result["network_params"][
+                "validator_custody_requirement"
+            ],
             max_blobs_per_block_electra=result["network_params"][
                 "max_blobs_per_block_electra"
             ],
@@ -1218,8 +1252,10 @@ def input_parser(plan, input_args):
         ethereum_metrics_exporter_enabled=result["ethereum_metrics_exporter_enabled"],
         xatu_sentry_enabled=result["xatu_sentry_enabled"],
         parallel_keystore_generation=result["parallel_keystore_generation"],
+        certmanager_test_enabled=result["certmanager_test_enabled"],
         disable_peer_scoring=result["disable_peer_scoring"],
         persistent=result["persistent"],
+        tempo_mtls_enabled=result["tempo_mtls_enabled"],
         xatu_sentry_params=struct(
             xatu_sentry_image=result["xatu_sentry_params"]["xatu_sentry_image"],
             xatu_server_addr=result["xatu_sentry_params"]["xatu_server_addr"],
@@ -1704,11 +1740,50 @@ def parse_network_params(plan, input_args):
                     )
                 )
 
+        vouch_fields_set = (
+            participant["dirk_cluster_id"] != None
+            or participant["vouch_multiinstance_style"] != ""
+            or participant["vouch_multiinstance_attester_delay"] != "0s"
+            or participant["vouch_multiinstance_proposer_delay"] != "0s"
+            or participant["vouch_account_start"] != None
+            or participant["vouch_account_count"] != None
+            or participant["vouch_default_strategies"]
+            or participant["vouch_strategies_yaml"] != ""
+        )
+        if participant["vc_type"] != constants.VC_TYPE.vouch:
+            if vouch_fields_set:
+                fail("Vouch configuration fields require vc_type: vouch")
+        else:
+            if participant["vouch_multiinstance_style"] not in ["", "static-delay"]:
+                fail(
+                    "Vouch participant has invalid vouch_multiinstance_style '{0}'; expected '' or 'static-delay'".format(
+                        participant["vouch_multiinstance_style"]
+                    )
+                )
+            has_account_start = participant["vouch_account_start"] != None
+            has_account_count = participant["vouch_account_count"] != None
+            if has_account_start != has_account_count:
+                fail("Vouch account start and count must be supplied together")
+            if has_account_start:
+                if participant["vouch_account_start"] < 0:
+                    fail("Vouch account start must be non-negative")
+                if participant["vouch_account_count"] <= 0:
+                    fail("Vouch account count must be positive")
+
         validator_count = participant["validator_count"]
         if validator_count == None:
             participant["validator_count"] = result["network_params"][
                 "num_validator_keys_per_node"
             ]
+
+        if (
+            participant["vc_type"] == constants.VC_TYPE.vouch
+            and participant["validator_count"] == 0
+        ):
+            if participant["dirk_cluster_id"] == None:
+                fail("Passive Vouch requires an explicit dirk_cluster_id")
+            if participant["vouch_account_start"] == None:
+                fail("Passive Vouch requires an explicit account range")
 
         actual_num_validators += participant["validator_count"]
 
@@ -1923,6 +1998,15 @@ def default_network_params():
         "genesis_delay": 20,
         "genesis_time": 0,
         "genesis_gaslimit": 60000000,
+        "genesis_fork_version": constants.GENESIS_FORK_VERSION,
+        "altair_fork_version": constants.ALTAIR_FORK_VERSION,
+        "bellatrix_fork_version": constants.BELLATRIX_FORK_VERSION,
+        "capella_fork_version": constants.CAPELLA_FORK_VERSION,
+        "deneb_fork_version": constants.DENEB_FORK_VERSION,
+        "electra_fork_version": constants.ELECTRA_FORK_VERSION,
+        "fulu_fork_version": constants.FULU_FORK_VERSION,
+        "gloas_fork_version": constants.GLOAS_FORK_VERSION,
+        "heze_fork_version": constants.HEZE_FORK_VERSION,
         "max_per_epoch_activation_churn_limit": 8,
         "churn_limit_quotient": 65536,
         "confirmation_byzantine_threshold": 25,
@@ -1954,7 +2038,9 @@ def default_network_params():
         "force_snapshot_sync": False,
         "shadowfork_block_height": "latest",
         "samples_per_slot": 8,
+        "data_column_sidecar_subnet_count": 128,
         "custody_requirement": 4,
+        "validator_custody_requirement": 8,
         "max_blobs_per_block_electra": 9,
         "target_blobs_per_block_electra": 6,
         "max_request_blocks_deneb": 128,
@@ -2012,6 +2098,15 @@ def default_minimal_network_params():
         "genesis_delay": 20,
         "genesis_time": 0,
         "genesis_gaslimit": 60000000,
+        "genesis_fork_version": constants.GENESIS_FORK_VERSION,
+        "altair_fork_version": constants.ALTAIR_FORK_VERSION,
+        "bellatrix_fork_version": constants.BELLATRIX_FORK_VERSION,
+        "capella_fork_version": constants.CAPELLA_FORK_VERSION,
+        "deneb_fork_version": constants.DENEB_FORK_VERSION,
+        "electra_fork_version": constants.ELECTRA_FORK_VERSION,
+        "fulu_fork_version": constants.FULU_FORK_VERSION,
+        "gloas_fork_version": constants.GLOAS_FORK_VERSION,
+        "heze_fork_version": constants.HEZE_FORK_VERSION,
         "max_per_epoch_activation_churn_limit": 4,
         "churn_limit_quotient": 32,
         "confirmation_byzantine_threshold": 25,
@@ -2043,7 +2138,9 @@ def default_minimal_network_params():
         "force_snapshot_sync": False,
         "shadowfork_block_height": "latest",
         "samples_per_slot": 8,
+        "data_column_sidecar_subnet_count": 128,
         "custody_requirement": 4,
+        "validator_custody_requirement": 8,
         "max_blobs_per_block_electra": 9,
         "target_blobs_per_block_electra": 6,
         "max_request_blocks_deneb": 128,
@@ -2151,6 +2248,17 @@ def default_participant():
         "remote_signer_max_cpu": 0,
         "remote_signer_min_mem": 0,
         "remote_signer_max_mem": 0,
+        "dirk_image": "attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0",
+        "dirk_peer_count": 3,
+        "dirk_signing_threshold": 2,
+        "dirk_cluster_id": None,
+        "vouch_multiinstance_style": "",
+        "vouch_multiinstance_attester_delay": "0s",
+        "vouch_multiinstance_proposer_delay": "0s",
+        "vouch_account_start": None,
+        "vouch_account_count": None,
+        "vouch_default_strategies": False,
+        "vouch_strategies_yaml": "",
         "validator_count": None,
         "node_selectors": {},
         "tolerations": [],
@@ -2380,7 +2488,7 @@ def get_default_tempo_params():
         "max_cpu": 1000,
         "min_mem": 128,
         "max_mem": 2048,
-        "image": "grafana/tempo:latest",
+        "image": "grafana/tempo:2.7.2@sha256:4b0277a9b572a4b1fa43b01468e58911ec214dd69d033f2cd476596d14de9fe3",
     }
 
 
