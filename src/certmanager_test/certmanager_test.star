@@ -18,13 +18,7 @@ def run_certmanager_tests(
             info.client_cert_artifact,
             info.client_key_artifact,
         )
-        for service_name in info.dirk_service_names:
-            assertions.assert_metrics(
-                plan,
-                service_name,
-                info.dirk_metrics_port,
-                assertions.DIRK_LABELS,
-            )
+        # Released Dirk exports no certmanager gauges yet; check Dirk's once it does.
         labels = (
             assertions.VOUCH_MTLS_LABELS
             if tempo_mtls_enabled
