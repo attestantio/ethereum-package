@@ -2,7 +2,7 @@
 set -euo pipefail
 [[ $# -eq 1 ]] || { echo "usage: $0 ENCLAVE" >&2; exit 2; }
 enclave=$1
-evidence_dir=${GLAM150_EVIDENCE_DIR:-}
+evidence_dir=${TEMPO_MTLS_EVIDENCE_DIR:-}
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 for service in tempo grafana vc-2-geth-lighthouse-vouch dirk-1 dirk-2 dirk-3; do
@@ -18,8 +18,9 @@ for service in dirk-1 dirk-2 dirk-3; do
   curl -fsS "http://$dirk_metrics/metrics" > "$workdir/$service.metrics"
   grep -q '^# HELP' "$workdir/$service.metrics"
 done
-kurtosis service logs "$enclave" dirk-1 > "$workdir/dirk-1.log"
-grep -q 'vouch-client' "$workdir/dirk-1.log"
+# Dirk logs client names only at trace level, so use metrics.
+grep -q 'dirk_checker_permissions{client="vouch-client"}' "$workdir/dirk-1.metrics"
+grep -Eq '^dirk_signer_process_requests_total\{request="proposal",result="succeeded"\} [1-9]' "$workdir/dirk-1.metrics"
 grep -q 'cert_file: /etc/tempo/tls/server.crt' "$workdir/tempo"
 grep -q 'key_file: /etc/tempo/tls/server.key' "$workdir/tempo"
 grep -q 'client_ca_file: /etc/tempo/tls/ca.crt' "$workdir/tempo"

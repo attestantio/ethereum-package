@@ -3,11 +3,14 @@ set -euo pipefail
 
 fixture=.github/tests/vouch-dirk-multiinstance.yaml
 workdir=$(mktemp -d)
-trap 'rm -rf "$workdir"; for enclave in $(kurtosis enclave ls | awk '\''NR > 1 && $2 ~ /^glam150-t2c1-validation-/ { print $2 }'\''); do kurtosis enclave rm -f "$enclave" >/dev/null 2>&1 || true; done' EXIT
+created=()
+# Remove only the enclaves this script created.
+trap 'rm -rf "$workdir"; for enclave in "${created[@]}"; do kurtosis enclave rm -f "$enclave" >/dev/null 2>&1 || true; done' EXIT
 
 run_invalid() {
   local name=$1 expected=$2 replacement=$3
   local file="$workdir/$name.yaml"
+  created+=("vouch-dirk-mi-validation-$$-$name")
   python3 - "$fixture" "$file" "$replacement" <<'PY'
 import sys
 source, target, replacement = sys.argv[1:]
@@ -17,12 +20,12 @@ if old not in text:
     raise SystemExit(f"missing replacement target: {old!r}")
 open(target, "w").write(text.replace(old, new, 1))
 PY
-  if kurtosis run . --enclave "glam150-t2c1-validation-$name" --args-file "$file" --verbosity brief >"$workdir/$name.log" 2>&1; then
+  if kurtosis run . --enclave "vouch-dirk-mi-validation-$$-$name" --args-file "$file" --verbosity brief >"$workdir/$name.log" 2>&1; then
     cat "$workdir/$name.log" >&2
     return 1
   fi
   grep -F "$expected" "$workdir/$name.log"
-  kurtosis enclave rm -f "glam150-t2c1-validation-$name" >/dev/null
+  kurtosis enclave rm -f "vouch-dirk-mi-validation-$$-$name" >/dev/null
 }
 
 run_invalid style "invalid vouch_multiinstance_style" $'vouch_multiinstance_style: static-delay|||vouch_multiinstance_style: invalid'
