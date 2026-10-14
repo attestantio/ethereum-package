@@ -80,6 +80,17 @@ def generate_el_cl_genesis_data(
             " && export CL_ADDITIONAL_VALIDATORS=/additional-validators/validators.txt"
         )
     genesis_run_cmd += " && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed"
+    if network_params.network == constants.NETWORK_NAME.kurtosis:
+        # A private network must not inherit public bootnodes from the generator.
+        genesis_run_cmd += " && : > /network-configs/bootstrap_nodes.txt && test ! -s /network-configs/bootstrap_nodes.yaml"
+        # Genesis must hold exactly the preregistered keys plus any additional (DKG) validators.
+        genesis_run_cmd += (
+            " && extra=$(grep -c '^0x' /additional-validators/validators.txt 2>/dev/null || true)"
+            + " && jq -e --argjson n $(( {0} + ${{extra:-0}} )) '.validators | length == $n'".format(
+                total_num_validator_keys_to_preregister
+            )
+            + " /network-configs/parsed/parsedConsensusGenesis.json > /dev/null"
+        )
 
     genesis = plan.run_sh(
         name="run-generate-genesis",
