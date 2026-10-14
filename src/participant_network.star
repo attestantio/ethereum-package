@@ -272,7 +272,6 @@ def launch_participant_network(
                 ca_cert_artifact=cert_result.ca_cert,
                 client_cert_artifact=cert_result.vouch_client_cert,
                 client_key_artifact=cert_result.vouch_client_key,
-                dirk_metrics_port=dirk_launcher.DIRK_METRICS_PORT_NUM,
                 vouch_metrics_port=vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
             )
 
