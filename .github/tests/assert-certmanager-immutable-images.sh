@@ -2,8 +2,8 @@
 set -euo pipefail
 [[ $# -eq 1 ]] || { echo "usage: $0 ENCLAVE" >&2; exit 2; }
 enclave=$1
-vouch_digest=sha256:048a2384bf40dc6436b23a876e2f227dc70345b6bccbd7fa76a4d01182e4df5e
-dirk_digest=sha256:0069f3212131492a027d63ddd599bbf50641a28c5cb0a5bafa23b0714aa733fc
+vouch_ref=attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b
+dirk_ref=attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
 services=(
   vc-1-geth-lighthouse-vouch
   vc-2-geth-lighthouse-vouch
@@ -18,8 +18,9 @@ done
 for service in "${services[@]}"; do
   image=$(kurtosis service inspect "$enclave" "$service" | grep -E 'Image|image' | head -1)
   case "$service" in
-    vc-*) echo "$image" | grep -F "localhost:5001/attestant/vouch@$vouch_digest" ;;
-    dirk-*) echo "$image" | grep -F "localhost:5001/attestant/dirk@$dirk_digest" ;;
+    vc-*) echo "$image" | grep -F "$vouch_ref" ;;
+    dirk-*) echo "$image" | grep -F "$dirk_ref" ;;
   esac
 done
-! grep -Eq 'attestant/(vouch|dirk):[^@[:space:]]+' .github/tests/vouch-dirk-certmanager.yaml
+# Every Vouch and Dirk reference in the fixture is pinned by digest.
+! grep -Eq 'attestant/(vouch|dirk):[^@[:space:]]+([[:space:]]|$)' .github/tests/vouch-dirk-certmanager.yaml

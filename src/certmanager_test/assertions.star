@@ -1,7 +1,6 @@
 dirk_launcher = import_module("../dirk/dirk_launcher.star")
 vc_shared = import_module("../vc/vc_shared.star")
 
-DIRK_LABELS = [("dirk", "server"), ("dirk", "client")]
 VOUCH_LABELS = [("dirk", "client")]
 VOUCH_MTLS_LABELS = [("dirk", "client"), ("tracing", "client")]
 OPENSSL_IMAGE = "alpine/openssl:3.5.5@sha256:7a1465c710d66ef753236a2d96c9c41f1fb0453862e5794640d6065aa1853087"
