@@ -23,3 +23,15 @@ curl --fail-with-body --silent --show-error \
 curl --fail-with-body --silent --show-error \
   "$beacon_url/eth/v1/beacon/states/genesis/validators" \
   | jq -e '.data | length == 2' >/dev/null
+
+# Vouch holds half the stake, so finality proves it attests through Dirk.
+for _ in $(seq 120); do
+  finalized=$(curl --fail-with-body --silent --show-error \
+    "$beacon_url/eth/v1/beacon/states/head/finality_checkpoints" | jq -r '.data.finalized.epoch')
+  if (( finalized >= 1 )); then
+    exit 0
+  fi
+  sleep 10
+done
+echo "chain did not finalize within 20 minutes" >&2
+exit 1

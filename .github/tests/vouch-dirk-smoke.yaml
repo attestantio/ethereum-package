@@ -1,17 +1,17 @@
 participants:
   - el_type: geth
-    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    el_image: ethereum/client-go:v1.17.8@sha256:abf3605177f8bdcfce436985a8054cca4ae59256323a4ffb72c56c04f3d1fadd
     cl_type: lighthouse
-    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    cl_image: sigp/lighthouse:v8.2.3@sha256:03356184ba534c4723d373398906d99452ef957297381bbbaece0e218910fa40
     supernode: true
     validator_count: 1
 
   - el_type: geth
-    el_image: registry-1.docker.io/ethpandaops/geth:master-101035a@sha256:ed1c68e3a7223e5062e997d82ef44ea36176a75ebec48fa7902a2353428741a5
+    el_image: ethereum/client-go:v1.17.8@sha256:abf3605177f8bdcfce436985a8054cca4ae59256323a4ffb72c56c04f3d1fadd
     cl_type: lighthouse
-    cl_image: registry-1.docker.io/ethpandaops/lighthouse:unstable-6ba64a1@sha256:a98b29835d08a04617fadd92381556c7e8c6c2032c8151bede781d5575ed7176
+    cl_image: sigp/lighthouse:v8.2.3@sha256:03356184ba534c4723d373398906d99452ef957297381bbbaece0e218910fa40
     vc_type: vouch
-    vc_image: attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2
+    vc_image: attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b
     use_separate_vc: true
     vouch_default_strategies: true
     validator_count: 1
@@ -20,7 +20,9 @@ participants:
     dirk_signing_threshold: 2
 
 network_params:
-  preset: minimal
+  # Vouch releases before 1.14 decode SSZ with mainnet sizes only.
+  preset: mainnet
+  seconds_per_slot: 6
 
 port_publisher:
   cl:
