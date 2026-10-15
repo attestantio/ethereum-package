@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sourced by the input-validation scripts. Set `fixture` and `enclave_prefix`
 # first, then call run_invalid once per invalid input.
+# shellcheck disable=SC2154 # fixture and enclave_prefix come from the caller
 #
 # run_invalid NAME EXPECTED 'OLD|||NEW' launches the fixture with the first
 # OLD replaced by NEW and passes if the launch fails with EXPECTED in its log.
