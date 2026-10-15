@@ -16,7 +16,7 @@ for service in dirk-1 dirk-2 dirk-3; do
 done
 grep -q 'endpoint: 0.0.0.0:4317' "$workdir/tempo"
 grep -q 'endpoint: 0.0.0.0:4318' "$workdir/tempo"
-! grep -Eq 'cert_file:|key_file:|client_ca_file:|/etc/tempo/tls' "$workdir/tempo"
+if grep -Eq 'cert_file:|key_file:|client_ca_file:|/etc/tempo/tls' "$workdir/tempo"; then exit 1; fi
 grep -q 'url: http://tempo:3200' "$workdir/grafana"
 grep -q "address: 'tempo:4317'" "$workdir/vouch"
 for service in dirk-1 dirk-2 dirk-3; do grep -A1 '^tracing:' "$workdir/$service" | grep -q "address: 'tempo:4317'"; done
