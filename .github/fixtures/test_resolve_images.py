@@ -1,0 +1,43 @@
+"""Offline tests for resolve-images.py. Run: python3 -m unittest discover -s .github/fixtures"""
+
+import contextlib
+import io
+import unittest
+
+from _loader import load
+
+res = load("resolve-images.py")
+
+
+class ResolveTest(unittest.TestCase):
+    def test_release_image_tags(self):
+        self.assertEqual(res.CLIENTS["geth"].image_tag("v1.17.8"), "v1.17.8")
+        self.assertEqual(res.CLIENTS["vouch"].image_tag("v1.13.1"), "1.13.1")
+        self.assertEqual(res.CLIENTS["nimbus"].image_tag("v26.10.0"), "multiarch-v26.10.0")
+
+    def test_commit_tag_matches_branch_and_digest(self):
+        tags = [
+            {"name": "master-linux-amd64-9e80021", "digest": "sha256:a"},
+            {"name": "master-1111111", "digest": "sha256:b"},
+            {"name": "master-9e80021", "digest": "sha256:a"},
+        ]
+        self.assertEqual(res.commit_tag("master", "sha256:a", tags), ("master-9e80021", "9e80021"))
+        self.assertEqual(res.commit_tag("master", "sha256:c", tags), (None, None))
+
+
+    def test_registry_detection(self):
+        self.assertTrue(res.on_docker_hub("ethpandaops/geth"))
+        self.assertFalse(res.on_docker_hub("ghcr.io/paradigmxyz/reth"))
+
+    def test_one_failing_client_does_not_stop_the_run(self):
+        def resolve(name):
+            if name == "bad":
+                raise RuntimeError("registry down")
+            return f"{name}: ok"
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertTrue(res.resolve_all(["bad", "good"], resolve))
+        self.assertIn("good: ok", out.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()
