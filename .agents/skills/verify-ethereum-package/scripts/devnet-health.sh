@@ -159,7 +159,7 @@ note ""
 note "execution layer heights"
 declare -a NUMS
 for el in "${ELS[@]}"; do
-  hx="$(el_rpc "$(port_url "$enclave" "$el" rpc)" eth_blockNumber)"
+  hx="$(el_rpc "$(el_rpc_url "$enclave" "$el")" eth_blockNumber)"
   if [[ -z "$hx" ]]; then diverge "$el" "no answer to eth_blockNumber"; continue; fi
   NUMS+=("$((hx))"); note "  $el = $((hx))"
 done
