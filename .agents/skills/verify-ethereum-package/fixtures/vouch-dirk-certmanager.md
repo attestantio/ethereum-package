@@ -19,11 +19,11 @@ Preconditions: a fresh enclave name and at least 12 GB of free Docker memory (10
 
 Ready when: the launch exits 0. The package runs its certmanager checks after first finality, about 30 minutes in, so exit 0 already proves `cm-identity`, `cm-metrics` and `cm-signing`.
 
-- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/vouch-dirk-certmanager.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
-- **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+Health epoch: 4.
+
+Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
+
 - **Images.** `.github/tests/assert-certmanager-immutable-images.sh "$enclave" > "$run_dir/assert-images.txt" 2>&1`. Pass: exit 0. Fail: any service runs an image other than the fixture's pin.
-- **Health.** After epoch 4, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: exit 1 (chain broken) or 2 (a client off the chain, stalled or not finalizing).
-- **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Gotchas
 
