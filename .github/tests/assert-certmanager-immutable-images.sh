@@ -2,8 +2,13 @@
 set -euo pipefail
 [[ $# -eq 1 ]] || { echo "usage: $0 ENCLAVE" >&2; exit 2; }
 enclave=$1
-vouch_ref=attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b
-dirk_ref=attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
+fixture=.github/tests/vouch-dirk-certmanager.yaml
+# Every Vouch and Dirk reference in the fixture is pinned by digest.
+if grep -Eq 'attestant/(vouch|dirk):[^@[:space:]]+([[:space:]]|$)' "$fixture"; then exit 1; fi
+# The fixture pins one image per role; the deployed services must use exactly it.
+vouch_ref=$(grep -oE 'attestant/vouch:[^[:space:]]+' "$fixture" | sort -u)
+dirk_ref=$(grep -oE 'attestant/dirk:[^[:space:]]+' "$fixture" | sort -u)
+[[ $(wc -l <<<"$vouch_ref") -eq 1 && $(wc -l <<<"$dirk_ref") -eq 1 ]]
 services=(
   vc-1-geth-lighthouse-vouch
   vc-2-geth-lighthouse-vouch
@@ -22,5 +27,3 @@ for service in "${services[@]}"; do
     dirk-*) echo "$image" | grep -F "$dirk_ref" ;;
   esac
 done
-# Every Vouch and Dirk reference in the fixture is pinned by digest.
-! grep -Eq 'attestant/(vouch|dirk):[^@[:space:]]+([[:space:]]|$)' .github/tests/vouch-dirk-certmanager.yaml

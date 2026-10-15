@@ -16,8 +16,6 @@ participants:
     vc_beacon_node_indices: [0, 1]
     validator_count: 1
     dirk_cluster_id: a
-    vouch_account_start: 0
-    vouch_account_count: 1
     vouch_multiinstance_style: static-delay
     vouch_multiinstance_attester_delay: 250ms
     vouch_multiinstance_proposer_delay: 500ms
