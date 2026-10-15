@@ -11,7 +11,7 @@ source "$(dirname "$0")/lib.sh"
 dir="$2"
 mkdir -p "$dir"
 out="$dir/SETUP-after.md"
-inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { echo "enclave $enclave not found" >&2; exit 1; }
+inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { echo "enclave $enclave not found" >&2; exit 2; }
 uuid="$(awk '/^UUID:/ {print $2; exit}' <<<"$inspect")"
 {
   echo "# SETUP-after: $(basename "$dir")"

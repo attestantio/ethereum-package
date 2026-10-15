@@ -12,7 +12,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 
 ## Driving conventions
 
-- Launch from the repo root with `kurtosis run . --enclave <name> --args-file .github/tests/<fixture>.yaml`.
+- Launch from the repo root. `$args` is `.github/tests/<fixture>.yaml`, or its `$run_dir/args.yaml` copy when an image override applies.
 - One enclave at a time. Clean it up before launching the next.
 - Service names come from the live enclave: `el-<n>-<el>-<cl>`, `cl-<n>-<cl>-<el>`, `vc-<n>-<el>-<cl>-<vc>`, `dirk-<cluster>-<n>` (or `dirk-<n>`), `tempo`.
 
@@ -30,7 +30,7 @@ A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the la
 
 Every recipe runs these steps around its own:
 
-1. **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/<fixture>.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+1. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
 2. **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
 3. The recipe's own steps.
 4. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
