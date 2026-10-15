@@ -32,7 +32,7 @@ uuid="$(awk '/^UUID:/ {print $2; exit}' <<<"$inspect")"
     echo "- $cl: $(curl -fsS -m 5 "$(port_url "$enclave" "$cl" http)/eth/v1/node/version" | jq -r .data.version)"
   done
   for el in $(services_of el "$inspect"); do
-    echo "- $el: $(el_rpc "$(port_url "$enclave" "$el" rpc)" web3_clientVersion)"
+    echo "- $el: $(el_rpc "$(el_rpc_url "$enclave" "$el")" web3_clientVersion)"
   done
   echo
   echo "## Served network"
