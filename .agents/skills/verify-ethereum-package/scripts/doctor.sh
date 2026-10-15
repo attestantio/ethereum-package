@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Read-only check: is this enclave worth driving?
 # Usage: doctor.sh <enclave>
-# Exit 0 when every check passes, 1 otherwise.
+# Exit 0 when every check passes, 1 otherwise, 2 when the enclave is not found.
 set -uo pipefail
 if [[ $# -ne 1 ]]; then
   echo "usage: $0 <enclave>" >&2
@@ -13,7 +13,7 @@ rc=0
 ok()  { printf 'PASS %s\n' "$*"; }
 bad() { printf 'FAIL %s\n' "$*"; rc=1; }
 
-inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { bad "enclave $enclave not found"; exit 1; }
+inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { bad "enclave $enclave not found"; exit 2; }
 status="$(awk '/^Status:/ {print $2; exit}' <<<"$inspect")"
 [[ "$status" == RUNNING ]] && ok "enclave $enclave $(awk '/^UUID:/ {print $2; exit}' <<<"$inspect") is RUNNING" || bad "enclave status is $status"
 
