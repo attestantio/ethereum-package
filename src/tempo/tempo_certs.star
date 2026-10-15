@@ -1,6 +1,5 @@
 constants = import_module("../package_io/constants.star")
 
-CERT_VALIDITY_DAYS_LONG = 1825
 TEMPO_CLIENT_CN = "vouch-tracing-client"
 
 
@@ -37,7 +36,7 @@ def _build_tempo_cert_script():
             "mkdir -p /certs/ca /certs/server /certs/client",
             "openssl genrsa -out {0}.key 4096".format(ca),
             'openssl req -x509 -new -nodes -key {0}.key -sha256 -days {1} -out {0}.crt -subj "/CN=Tempo CA" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"'.format(
-                ca, CERT_VALIDITY_DAYS_LONG
+                ca, constants.CERT_VALIDITY_DAYS
             ),
             "openssl genrsa -out {0}.key 4096".format(server),
             "cat > {0}.ext <<EOF\nauthorityKeyIdentifier=keyid,issuer\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:tempo\nEOF".format(
@@ -47,7 +46,7 @@ def _build_tempo_cert_script():
                 server
             ),
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}.crt -days {2} -sha256 -extfile {0}.ext".format(
-                server, ca, CERT_VALIDITY_DAYS_LONG
+                server, ca, constants.CERT_VALIDITY_DAYS
             ),
             "openssl genrsa -out {0}.key 4096".format(client),
             "cat > {0}.ext <<EOF\nauthorityKeyIdentifier=keyid,issuer\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\nEOF".format(
@@ -57,7 +56,7 @@ def _build_tempo_cert_script():
                 client, TEMPO_CLIENT_CN
             ),
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}.crt -days {2} -sha256 -extfile {0}.ext".format(
-                client, ca, CERT_VALIDITY_DAYS_LONG
+                client, ca, constants.CERT_VALIDITY_DAYS
             ),
             "cp {0}.crt /certs/server/ca.crt".format(ca),
             "cp {0}.crt /certs/client/ca.crt".format(ca),

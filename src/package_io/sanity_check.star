@@ -84,9 +84,7 @@ PARTICIPANT_CATEGORIES = {
         "vouch_multiinstance_style",
         "vouch_multiinstance_attester_delay",
         "vouch_multiinstance_proposer_delay",
-        "vouch_account_start",
-        "vouch_account_count",
-        "vouch_default_strategies",
+        "vouch_package_strategies",
         "vouch_strategies_yaml",
     ],
 }
@@ -685,25 +683,6 @@ def sanity_check(plan, input_args):
         "additional_services", []
     ):
         fail("tempo_mtls_enabled requires additional_services to include tempo")
-
-    if input_args.get("certmanager_test_enabled", False):
-        participants = input_args.get("participants", [])
-        vouch_participants = [
-            participant
-            for participant in participants
-            if participant.get("vc_type") == "vouch"
-        ]
-        if not vouch_participants:
-            fail("certmanager_test_enabled requires at least one Vouch participant")
-        for participant in vouch_participants:
-            for field in ["vc_image", "dirk_image"]:
-                image = participant.get(field, "")
-                if "@sha256:" not in image:
-                    fail(
-                        "certmanager_test_enabled requires digest-qualified {0}".format(
-                            field
-                        )
-                    )
 
     # Checks subcategories
     for subcategories in SUBCATEGORY_PARAMS.keys():
