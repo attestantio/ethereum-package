@@ -92,8 +92,9 @@ def get_config(
         else:
             tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
 
-    # Each cluster's Dirk wallet holds only that cluster's accounts.
-    accounts_yaml = "      - '{0}'\n".format(constants.DIRK_WALLET_NAME)
+    accounts_yaml = "".join(
+        ["      - '{0}'\n".format(account) for account in dirk_context.accounts]
+    )
 
     if not participant.vouch_package_strategies:
         strategies_yaml = ""
