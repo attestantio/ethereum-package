@@ -15,3 +15,9 @@ Attestant's fork of `ethpandaops/ethereum-package`: a Kurtosis package that laun
 - **Launch mechanics** (config fields, `kurtosis` commands, client images): the `kurtosis-ethereum` skill.
 - **Learnings** by area, read before working in that area: [docs/learnings/README.md](docs/learnings/README.md).
 - **Tooling candidates**, invariants that could become checks: [docs/tooling-candidates.md](docs/tooling-candidates.md). Add a row when a review catches something a tool could catch.
+
+## Divergences from upstream
+
+Check this list after every sync with upstream `main`, and drop an entry once its removal condition holds.
+
+- `.github/check-consensus-spec-values.py` excludes `EIP8198_FORK_EPOCH`, `EIP8198_FORK_VERSION` and `SLOT_DURATION_MS_EIP8198`. The genesis generator emits `SLOT_DURATION_MS_HEZE` in their place (upstream ethpandaops/ethereum-package#1499), so upstream's own spec check fails. We chose green CI with a documented gap over a red check we cannot fix here. Remove the exclusions once the generated config carries those fields or the spec drops them.
