@@ -4,7 +4,7 @@
 
 - An active Vouch (`validator_count > 0`) creates a Dirk cluster and manages all of its accounts. A passive Vouch (`validator_count: 0`) joins one by `dirk_cluster_id` and serves the same accounts, so every instance sharing a cluster needs static-delay multi-instance. There are no partial account ranges: with the active instance owning its cluster, a range could only restate it.
 - Vouch validators come from the Dirk DKG. `shared_utils.has_mnemonic_keys` excludes Vouch participants from the keystore generator, the genesis count and `validator-ranges.yaml`; use it wherever mnemonic key indices are counted.
-- Vouch releases before 1.14 decode SSZ with mainnet sizes only. On the minimal preset every proposal fails to decode, so Vouch fixtures use the mainnet preset; 6s slots keep runs short.
+- Vouch releases before 1.14 decode SSZ with mainnet sizes only. On the minimal preset every proposal fails to decode, so Vouch fixtures use the mainnet preset; most use 6s slots to keep runs short.
 
 ## Tracing
 
