@@ -58,12 +58,6 @@ participants:
     cl_image: chainsafe/lodestar:v1.50.0@sha256:f3d339e962672a8ccc50e0b7c87ba2e215b8894d3d5e4471e5502608bfae0a16
     validator_count: 0
     supernode: true
-network_params:
-  preset: mainnet
-  seconds_per_slot: 12
-  num_validator_keys_per_node: 128
-  electra_fork_epoch: 0
-  fulu_fork_epoch: 0
 
 certmanager_test_enabled: true
 additional_services:

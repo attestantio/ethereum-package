@@ -13,7 +13,7 @@ kurtosis service exec "$enclave" vc-2-geth-lighthouse-vouch 'cat /config/vouch.y
 kurtosis service exec "$enclave" grafana 'cat /config/datasources/datasource.yml' > "$workdir/grafana"
 for service in dirk-1 dirk-2 dirk-3; do
   kurtosis service exec "$enclave" "$service" 'cat /config/dirk.yml' > "$workdir/$service"
-  ! grep -q '^tracing:' "$workdir/$service"
+  if grep -q '^tracing:' "$workdir/$service"; then exit 1; fi
   dirk_metrics=$(kurtosis port print "$enclave" "$service" metrics --format ip,number | tr ' ' ':')
   curl -fsS "http://$dirk_metrics/metrics" > "$workdir/$service.metrics"
   grep -q '^# HELP' "$workdir/$service.metrics"

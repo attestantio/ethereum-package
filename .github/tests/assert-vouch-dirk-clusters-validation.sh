@@ -2,31 +2,8 @@
 set -euo pipefail
 
 fixture=.github/tests/vouch-dirk-clusters.yaml
-workdir=$(mktemp -d)
-created=()
-# Remove only the enclaves this script created.
-trap 'rm -rf "$workdir"; for enclave in "${created[@]}"; do kurtosis enclave rm -f "$enclave" >/dev/null 2>&1 || true; done' EXIT
-
-run_invalid() {
-  local name=$1 expected=$2 replacement=$3
-  local file="$workdir/$name.yaml"
-  created+=("vouch-dirk-clusters-validation-$$-$name")
-  python3 - "$fixture" "$file" "$replacement" <<'PY'
-import sys
-source, target, replacement = sys.argv[1:]
-text = open(source).read()
-old, new = replacement.split('|||', 1)
-if old not in text:
-    raise SystemExit(f"missing replacement target: {old!r}")
-open(target, "w").write(text.replace(old, new, 1))
-PY
-  if kurtosis run . --enclave "vouch-dirk-clusters-validation-$$-$name" --args-file "$file" --verbosity brief >"$workdir/$name.log" 2>&1; then
-    cat "$workdir/$name.log" >&2
-    return 1
-  fi
-  grep -F "$expected" "$workdir/$name.log"
-  kurtosis enclave rm -f "vouch-dirk-clusters-validation-$$-$name" >/dev/null
-}
+enclave_prefix=vouch-dirk-clusters-validation
+source .github/tests/lib-invalid-inputs.sh
 
 run_invalid duplicate "already defined" $'dirk_cluster_id: b|||dirk_cluster_id: a'
 run_invalid implicit "Multiple active Vouch creators without dirk_cluster_id" $'dirk_cluster_id: b|||dirk_cluster_id:'
@@ -36,3 +13,6 @@ run_invalid threshold "must be between 1" $'dirk_signing_threshold: 2\n\n  - el_
 run_invalid bounds "outside cluster 'a' bounds" $'validator_count: 0\n    dirk_cluster_id: a\n    vouch_account_start: 0|||validator_count: 0\n    dirk_cluster_id: a\n    vouch_account_start: 1'
 run_invalid partial "invalid overlapping account range" $'validator_count: 1\n    dirk_cluster_id: a|||validator_count: 2\n    dirk_cluster_id: a'
 run_invalid non-multiinstance "invalid overlapping account range" $'vouch_multiinstance_style: static-delay\n    vouch_multiinstance_attester_delay: 250ms\n    vouch_multiinstance_proposer_delay: 500ms\n    dirk_image:|||vouch_multiinstance_style: \'\'\n    vouch_multiinstance_attester_delay: 250ms\n    vouch_multiinstance_proposer_delay: 500ms\n    dirk_image:'
+run_invalid pair "must be supplied together" $'vouch_account_count: 1|||vouch_account_count: null'
+run_invalid start "must be non-negative" $'vouch_account_start: 0|||vouch_account_start: -1'
+run_invalid count "must be positive" $'vouch_account_count: 1|||vouch_account_count: 0'

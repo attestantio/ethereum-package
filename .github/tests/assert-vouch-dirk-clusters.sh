@@ -23,8 +23,8 @@ grep -q 'DistributedWallet/1' "$workdir/vc-4.yml"
 grep -q 'dirk-a-1:8881' "$workdir/vc-2.yml"
 grep -q 'dirk-a-1:8881' "$workdir/vc-3.yml"
 grep -q 'dirk-b-1:8881' "$workdir/vc-4.yml"
-! grep -q 'dirk-b-' "$workdir/vc-2.yml"
-! grep -q 'dirk-a-' "$workdir/vc-4.yml"
+if grep -q 'dirk-b-' "$workdir/vc-2.yml"; then exit 1; fi
+if grep -q 'dirk-a-' "$workdir/vc-4.yml"; then exit 1; fi
 
 kurtosis files download "$enclave" dkg-validators-file "$workdir/dkg"
 test "$(head -n 1 "$workdir/dkg/validators.txt")" = '# DKG validator pubkeys for genesis'
