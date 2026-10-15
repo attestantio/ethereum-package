@@ -22,8 +22,8 @@ grep -q "address: 'tempo:4317'" "$workdir/vouch"
 for service in dirk-1 dirk-2 dirk-3; do grep -A1 '^tracing:' "$workdir/$service" | grep -q "address: 'tempo:4317'"; done
 tempo=$(kurtosis port print "$enclave" tempo http --format ip,number | tr ' ' ':')
 for _ in $(seq 1 60); do
-  dirk=$(curl -fsS "http://$tempo/api/search?tags=service.name%3DDirk&limit=5")
-  vouch=$(curl -fsS "http://$tempo/api/search?tags=service.name%3DVouch&limit=5")
+  dirk=$(curl -fsS "http://$tempo/api/search?tags=service.name%3DDirk&limit=5" || true)
+  vouch=$(curl -fsS "http://$tempo/api/search?tags=service.name%3DVouch&limit=5" || true)
   if jq -e '.traces | length > 0' <<<"$dirk" >/dev/null && jq -e '.traces | length > 0' <<<"$vouch" >/dev/null; then exit 0; fi
   sleep 5
 done

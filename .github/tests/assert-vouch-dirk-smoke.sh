@@ -26,8 +26,9 @@ curl --fail-with-body --silent --show-error \
 
 # Vouch holds half the stake, so finality proves it attests through Dirk.
 for _ in $(seq 120); do
+  # A failed request counts as not yet finalized.
   finalized=$(curl --fail-with-body --silent --show-error \
-    "$beacon_url/eth/v1/beacon/states/head/finality_checkpoints" | jq -r '.data.finalized.epoch')
+    "$beacon_url/eth/v1/beacon/states/head/finality_checkpoints" | jq -r '.data.finalized.epoch' || echo 0)
   if (( finalized >= 1 )); then
     exit 0
   fi

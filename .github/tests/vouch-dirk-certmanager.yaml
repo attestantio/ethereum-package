@@ -29,10 +29,7 @@ participants:
     vouch_multiinstance_style: 'static-delay'
     vouch_multiinstance_attester_delay: '4s'
     vouch_multiinstance_proposer_delay: '2s'
-    vouch_account_start: 0
-    vouch_account_count: 128
     vc_image: attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b
-    dirk_image: attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
     vc_beacon_node_indices: [0, 1, 2, 3]
 
   # Active Vouch cluster B, accounts 128-255.
