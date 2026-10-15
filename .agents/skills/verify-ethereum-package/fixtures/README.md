@@ -26,9 +26,19 @@ This directory is the maintained source for verifying the package's fixtures. Re
 
 A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the layout, then run `python3 .github/fixtures/generate-fixture.py`; CI fails on a hand-edited fixture. `python3 .github/fixtures/resolve-images.py mainnet` or `... next-fork <repo> <commit> <devnet>` prints digest-pinned images to paste into the layout. Verify a generated fixture like any other.
 
+## Common steps
+
+Every recipe runs these steps around its own:
+
+1. **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/<fixture>.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+2. **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+3. The recipe's own steps.
+4. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
+5. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
+
 ## Fixture entry contract
 
-Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section opens with `Preconditions:` and `Ready when:`, then one bullet per step naming the command, what passes and what fails.
+Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section states `Preconditions:`, `Ready when:` and `Health epoch:`, then one bullet per fixture-specific step naming the command, what passes and what fails.
 
 ## Fixtures
 
