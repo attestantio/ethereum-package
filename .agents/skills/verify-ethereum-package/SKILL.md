@@ -17,7 +17,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
 3. **Setup before.** Run `setup-before.sh <args-file> "$run_dir"`, then replace its Topology placeholder with the participants, client per role, validator split and any Vouch/Dirk layout. Put any edited args file in `$run_dir` and launch that copy. On Apple Silicon, apply the arm64 image override from [`fixtures/README.md`](fixtures/README.md) this way.
 4. **Run.** `kurtosis run . --enclave "$enclave" --args-file <args-file> > "$run_dir/launch.log" 2>&1`. Record the full UUID from `kurtosis enclave inspect --full-uuids "$enclave"` in `$run_dir/resources.md` straight away, even if the run failed part-way. A failed `inspect` does not prove the enclave is absent.
-5. **Ready.** The run exits 0, `doctor.sh "$enclave"` exits 0, and the chain has passed the fixture's readiness point (its feature file names it). Ready means usable: running containers or a sync flag are not enough.
+5. **Ready.** The fixture file's `Ready when:` line holds. Ready means usable: running containers or a sync flag are not enough.
 
 `launch.log` contains the network's prefunded private keys. Keep it in the run directory and redact it before sharing. `kurtosis run --dry-run` can still create an enclave; record and clean it like any other.
 
@@ -29,7 +29,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-`, `dirk-` and `tempo-` container is running, and every beacon node's head is within 2 slots of the wall clock. Exit 0 means worth driving. Run it first, and again whenever something looks off.
 
-For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is an unhealthy chain, 2 is a client diverged from a healthy chain. A healthy majority does not verify a diverged client: record each one.
+For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is a broken majority chain, 2 is a client off the chain, stalled or not finalizing while the majority is healthy. A healthy majority does not verify a diverged client: record each one.
 
 ## Drive
 
@@ -57,8 +57,4 @@ Remove only what this run created, by the full UUID in `resources.md`: `kurtosis
 
 ## Helpers
 
-- `doctor.sh <enclave>`: readiness check above.
-- `devnet-health.sh <enclave>`: chain health across every client.
-- `setup-before.sh <args-file> <run-dir>`: records the package commit, args file, images and host before launch.
-- `setup-after.sh <enclave> <run-dir>`: records deployed images, reported client versions, served network and bootnodes from the live enclave.
-- `review-page.sh <run-dir> [--no-open]`: builds and opens the review page.
+Every script prints its usage and exits 2 on wrong arguments. `lib.sh` holds shared service discovery and is sourced, not run.
