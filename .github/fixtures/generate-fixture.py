@@ -38,6 +38,8 @@ GENESIS_DELAY = 20
 SLOTS_PER_EPOCH = {"mainnet": 32, "minimal": 8}
 FORKS = ["altair", "bellatrix", "capella", "deneb", "electra", "fulu", "gloas", "heze"]
 MAINNET_LIVE_FORKS = ["altair", "bellatrix", "capella", "deneb", "electra", "fulu"]
+# Mainnet's live blob steps as (max, target, base fee update fraction).
+MAINNET_BPOS = [(15, 10, 8346193), (21, 14, 11684671)]
 BPO_SLOTS = 5
 PEERDAS_KEYS = [
     "data_column_sidecar_subnet_count",
@@ -100,11 +102,14 @@ def next_fork_params(config, genesis):
     # The EL genesis lists every blob step with its target and fraction. The CL
     # config's BLOB_SCHEDULE collapses steps that share an epoch, so it is not used.
     schedule = genesis["config"]["blobSchedule"]
-    # cancun predates Electra and keeps the package default.
-    known = {"cancun", "prague"} | {f"bpo{n}" for n in range(1, BPO_SLOTS + 1)}
+    # cancun predates Electra and keeps the package default. The package has no
+    # Osaka blob fields, so an osaka step must repeat prague.
+    known = {"cancun", "prague", "osaka"} | {f"bpo{n}" for n in range(1, BPO_SLOTS + 1)}
     unknown = sorted(set(schedule) - known)
     if unknown:
         sys.exit(f"blobSchedule has steps the generator does not map: {', '.join(unknown)}")
+    if schedule.get("osaka", schedule["prague"]) != schedule["prague"]:
+        sys.exit("blobSchedule osaka differs from prague; the package has no Osaka blob fields")
     prague = schedule["prague"]
     params["max_blobs_per_block_electra"] = prague["max"]
     params["target_blobs_per_block_electra"] = prague["target"]
@@ -133,10 +138,20 @@ def next_fork_params(config, genesis):
 
 def mainnet_params():
     # Written out, though they equal today's defaults, so the fixture keeps them
-    # if the package defaults move to a newer fork.
+    # if the package defaults move to a newer fork or blob schedule.
     params = {"network": "kurtosis", "preset": "mainnet"}
     for fork in FORKS:
         params[f"{fork}_fork_epoch"] = 0 if fork in MAINNET_LIVE_FORKS else FAR_FUTURE
+    for n in range(1, BPO_SLOTS + 1):
+        if n > len(MAINNET_BPOS):
+            params[f"bpo_{n}_epoch"] = FAR_FUTURE
+            continue
+        params[f"bpo_{n}_epoch"] = 0
+        (
+            params[f"bpo_{n}_max_blobs"],
+            params[f"bpo_{n}_target_blobs"],
+            params[f"bpo_{n}_base_fee_update_fraction"],
+        ) = MAINNET_BPOS[n - 1]
     return params
 
 
@@ -146,7 +161,11 @@ def apply_overrides(params, overrides):
     if "seconds_per_slot" in overrides and "slot_duration_ms" not in overrides and "slot_duration_ms" in params:
         params["slot_duration_ms"] = overrides["seconds_per_slot"] * 1000
     if "slot_duration_ms" in overrides and "seconds_per_slot" not in overrides and "seconds_per_slot" in params:
-        params["seconds_per_slot"] = overrides["slot_duration_ms"] // 1000
+        # seconds_per_slot only holds whole seconds; the package derives it otherwise.
+        if overrides["slot_duration_ms"] % 1000:
+            del params["seconds_per_slot"]
+        else:
+            params["seconds_per_slot"] = overrides["slot_duration_ms"] // 1000
     return params
 
 
