@@ -12,3 +12,6 @@ run_invalid passive-cluster "Passive Vouch requires an explicit dirk_cluster_id"
 run_invalid passive-missing "references missing dirk_cluster_id 'a'" $'validator_count: 1\n    dirk_cluster_id: a|||validator_count: 0\n    dirk_cluster_id: a'
 run_invalid non-vouch "Vouch configuration fields require vc_type: vouch" $'supernode: true|||supernode: true\n    vouch_package_strategies: false'
 run_invalid network "Vouch participants need network: kurtosis" $'seconds_per_slot: 6|||seconds_per_slot: 6\n  network: sepolia'
+run_invalid separate-vc "Vouch runs as a separate VC" $'use_separate_vc: true|||use_separate_vc: false'
+run_invalid strategies-off "no effect with vouch_package_strategies: false" $'use_separate_vc: true|||use_separate_vc: true\n    vouch_package_strategies: false\n    vouch_strategies_yaml: "strategies: {}"'
+run_invalid delays-no-style "require vouch_multiinstance_style: static-delay" $'vouch_multiinstance_style: static-delay|||vouch_multiinstance_style: ""'
