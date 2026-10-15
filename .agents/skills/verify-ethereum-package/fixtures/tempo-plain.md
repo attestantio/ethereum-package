@@ -1,6 +1,6 @@
 # Tempo plain
 
-A mainnet-preset Vouch/Dirk network with 6s slots with the Tempo and Prometheus/Grafana services. It proves Vouch and Dirk both send traces to plain (non-TLS) Tempo.
+A mainnet-preset Vouch/Dirk network with 6s slots, plus Tempo and Prometheus/Grafana. It proves Vouch and Dirk both send traces to plain (non-TLS) Tempo.
 
 ## Sub-features
 
@@ -13,15 +13,16 @@ A mainnet-preset Vouch/Dirk network with 6s slots with the Tempo and Prometheus/
 
 ## Driving it with kurtosis
 
-Preconditions:
+Preconditions: a fresh enclave name.
 
-- A fresh enclave name.
+Ready when: the launch exits 0, `doctor.sh` passes and two epochs have passed, so spans exist.
 
-- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/tempo-plain.yaml > "$run_dir/launch.log" 2>&1`. Exit 0.
-- **Doctor and health.** `doctor.sh` exits 0; after epoch 5, `devnet-health.sh` exits 0.
-- **Assertions.** Wait at least two epochs so spans exist, then `.github/tests/assert-tempo-plain.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Exit 0.
+- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/tempo-plain.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+- **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+- **Assertions.** `.github/tests/assert-tempo-plain.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Pass: exit 0 (plain receivers, no TLS settings, Vouch and Dirk spans found). Fail: any other exit.
+- **Health.** After epoch 5, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: exit 1 (chain broken) or 2 (a client off the chain, stalled or not finalizing).
 - **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Gotchas
 
-- Tempo indexes spans with a delay. An immediate query can be empty on a healthy run.
+- Tempo indexes spans with a delay. The script retries for 5 minutes; an immediate manual query can be empty on a healthy run.

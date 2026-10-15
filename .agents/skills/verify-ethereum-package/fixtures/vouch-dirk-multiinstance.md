@@ -1,11 +1,11 @@
 # Vouch/Dirk multi-instance
 
-A mainnet-preset network with 6s slots and one Vouch configured for static-delay multi-instance over an explicit account range on Dirk cluster A. A second script proves the package rejects invalid multi-instance inputs.
+A mainnet-preset network with 6s slots and one active Vouch configured for static-delay multi-instance on Dirk cluster A. A second script proves the package rejects invalid multi-instance inputs.
 
 ## Sub-features
 
-- `mi-run`: the multi-instance Vouch runs with its configured delays and account range.
-- `mi-validation`: invalid style, unpaired range, negative start, zero count, passive without cluster or range, and Vouch fields on a non-Vouch participant all fail at parse time with the expected message.
+- `mi-run`: the Vouch runs with static-delay multi-instance, its configured delays and its cluster's single account.
+- `mi-validation`: invalid style, an account range on an active Vouch, passive without cluster or range, and Vouch fields on a non-Vouch participant all fail at parse time with the expected message.
 
 ## How to get to it (user POV)
 
@@ -13,18 +13,17 @@ A mainnet-preset network with 6s slots and one Vouch configured for static-delay
 
 ## Driving it with kurtosis
 
-Preconditions:
+Preconditions: a fresh enclave name.
 
-- A fresh enclave name.
+Ready when: the launch exits 0 and `doctor.sh` passes.
 
-- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/vouch-dirk-multiinstance.yaml > "$run_dir/launch.log" 2>&1`. Exit 0.
-- **Doctor and health.** `doctor.sh` exits 0; after epoch 5, `devnet-health.sh` exits 0.
-- **Rendered config.** Download the Vouch config artifact (`kurtosis files download "$enclave" vouch-config-1 "$run_dir/vouch-config"`). It has `multiinstance.style: static-delay`, attester delay `250ms`, proposer delay `500ms` and account `0` only.
-- **Validation.** Run `.github/tests/assert-vouch-dirk-multiinstance-validation.sh > "$run_dir/validation.txt" 2>&1`. Exit 0. It launches one short enclave per invalid input and removes each.
+- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/vouch-dirk-multiinstance.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+- **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+- **Assertions.** `.github/tests/assert-vouch-dirk-multiinstance.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Pass: exit 0 (static-delay, 250ms and 500ms delays, account `DistributedWallet/0` only, starts inactive). Fail: any other exit.
+- **Validation.** `.github/tests/assert-vouch-dirk-multiinstance-validation.sh > "$run_dir/validation.txt" 2>&1`. Pass: exit 0. Fail: an invalid input launched, or failed with a different message. It launches one short enclave per input and removes only those.
+- **Health.** After epoch 5, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: exit 1 (chain broken) or 2 (a client off the chain, stalled or not finalizing).
 - **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Gotchas
 
-- The amd64 Vouch image crashes under emulation here (deadlock detector). Use the arm64 override on Apple Silicon.
 - Static-delay Vouch starts with `attester_active` and `proposer_active` false before arbitration; that is expected.
-- The validation script creates and deletes its own enclaves. Run it only while no other run is using its enclave names.
