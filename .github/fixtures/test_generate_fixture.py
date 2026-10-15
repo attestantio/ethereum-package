@@ -134,6 +134,8 @@ class GenerateTest(unittest.TestCase):
         self.assertEqual(p["fulu_fork_epoch"], 0)
         self.assertEqual(p["gloas_fork_epoch"], FAR)
         self.assertNotIn("network_id", p)
+        self.assertEqual((p["bpo_2_epoch"], p["bpo_2_max_blobs"], p["bpo_2_target_blobs"]), (0, 21, 14))
+        self.assertEqual(p["bpo_3_epoch"], FAR)
 
     def test_layout_text_is_kept_without_fixture_source(self):
         text = gen.generate(self.layout(), fake_fetch)
@@ -151,11 +153,26 @@ class GenerateTest(unittest.TestCase):
         self.assertNotEqual(gen.drift(layout, fixture, fake_fetch), [])
 
 
+    def with_blob_step(self, name, step):
+        schedule = {**GENESIS["config"]["blobSchedule"], name: step}
+        return {**GENESIS, "config": {**GENESIS["config"], "blobSchedule": schedule}}
+
     def test_unknown_blob_step_fails(self):
-        genesis = {**GENESIS, "config": {**GENESIS["config"], "blobSchedule": {**GENESIS["config"]["blobSchedule"], "osaka": {}}}}
         with self.assertRaises(SystemExit) as raised:
-            gen.next_fork_params(yaml.load(CONFIG, Loader=yaml.BaseLoader), genesis)
+            gen.next_fork_params(yaml.load(CONFIG, Loader=yaml.BaseLoader), self.with_blob_step("amsterdam", {}))
+        self.assertIn("amsterdam", str(raised.exception.code))
+
+    def test_osaka_blob_step_must_repeat_prague(self):
+        config = yaml.load(CONFIG, Loader=yaml.BaseLoader)
+        prague = GENESIS["config"]["blobSchedule"]["prague"]
+        gen.next_fork_params(config, self.with_blob_step("osaka", dict(prague)))
+        with self.assertRaises(SystemExit) as raised:
+            gen.next_fork_params(config, self.with_blob_step("osaka", {**prague, "max": prague["max"] + 1}))
         self.assertIn("osaka", str(raised.exception.code))
+
+    def test_fractional_slot_override_drops_seconds_per_slot(self):
+        p = gen.apply_overrides({"seconds_per_slot": 6, "slot_duration_ms": 6000}, {"slot_duration_ms": 1500})
+        self.assertEqual(p, {"slot_duration_ms": 1500})
 
     def test_check_exits_nonzero_on_drift(self):
         layouts = self.dir / "layouts"
