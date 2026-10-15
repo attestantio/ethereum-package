@@ -52,6 +52,19 @@ DEFAULT_VC_IMAGES = {
     "consensoor": "ethpandaops/consensoor:main",
 }
 
+# Participant fields that only a Vouch participant may set.
+VOUCH_FIELDS = [
+    "dirk_image",
+    "dirk_peer_count",
+    "dirk_signing_threshold",
+    "dirk_cluster_id",
+    "vouch_multiinstance_style",
+    "vouch_multiinstance_attester_delay",
+    "vouch_multiinstance_proposer_delay",
+    "vouch_package_strategies",
+    "vouch_strategies_yaml",
+]
+
 DEFAULT_VC_IMAGES_MINIMAL = {
     "lighthouse": "ethpandaops/lighthouse:unstable",
     "lodestar": "ethpandaops/lodestar:unstable",
@@ -738,113 +751,135 @@ def input_parser(plan, input_args):
             + "your apache settings have been silently routed to nginx."
         )
 
-    parsed = struct(
-        participants=[
-            struct(
-                el_type=participant["el_type"],
-                el_image=participant["el_image"],
-                el_binary_path=participant["el_binary_path"],
-                el_log_level=participant["el_log_level"],
-                el_storage_type=participant["el_storage_type"],
-                el_volume_size=participant["el_volume_size"],
-                el_extra_params=participant["el_extra_params"],
-                el_extra_mounts=participant["el_extra_mounts"],
-                el_devices=participant["el_devices"],
-                el_extra_env_vars=participant["el_extra_env_vars"],
-                el_extra_labels=participant["el_extra_labels"],
-                el_tolerations=participant["el_tolerations"],
-                cl_type=participant["cl_type"],
-                cl_image=participant["cl_image"],
-                cl_binary_path=participant["cl_binary_path"],
-                cl_log_level=participant["cl_log_level"],
-                cl_volume_size=participant["cl_volume_size"],
-                cl_extra_env_vars=participant["cl_extra_env_vars"],
-                cl_tolerations=participant["cl_tolerations"],
-                use_separate_vc=participant["use_separate_vc"],
-                vc_type=participant["vc_type"],
-                vc_image=participant["vc_image"],
-                vc_binary_path=participant["vc_binary_path"],
-                vc_log_level=participant["vc_log_level"],
-                vc_tolerations=participant["vc_tolerations"],
-                cl_extra_params=participant["cl_extra_params"],
-                cl_extra_mounts=participant["cl_extra_mounts"],
-                cl_devices=participant["cl_devices"],
-                cl_extra_labels=participant["cl_extra_labels"],
-                vc_extra_params=participant["vc_extra_params"],
-                vc_extra_mounts=participant["vc_extra_mounts"],
-                vc_devices=participant["vc_devices"],
-                vc_extra_env_vars=participant["vc_extra_env_vars"],
-                vc_extra_labels=participant["vc_extra_labels"],
-                use_remote_signer=participant["use_remote_signer"],
-                remote_signer_type=participant["remote_signer_type"],
-                remote_signer_image=participant["remote_signer_image"],
-                remote_signer_tolerations=participant["remote_signer_tolerations"],
-                remote_signer_extra_env_vars=participant[
-                    "remote_signer_extra_env_vars"
-                ],
-                remote_signer_extra_params=participant["remote_signer_extra_params"],
-                remote_signer_extra_labels=participant["remote_signer_extra_labels"],
-                builder_network_params=participant["builder_network_params"],
-                supernode=participant["supernode"],
-                el_min_cpu=participant["el_min_cpu"],
-                el_max_cpu=participant["el_max_cpu"],
-                el_min_mem=participant["el_min_mem"],
-                el_max_mem=participant["el_max_mem"],
-                el_force_restart=participant["el_force_restart"],
-                cl_min_cpu=participant["cl_min_cpu"],
-                cl_max_cpu=participant["cl_max_cpu"],
-                cl_min_mem=participant["cl_min_mem"],
-                cl_max_mem=participant["cl_max_mem"],
-                cl_force_restart=participant["cl_force_restart"],
-                vc_min_cpu=participant["vc_min_cpu"],
-                vc_max_cpu=participant["vc_max_cpu"],
-                vc_min_mem=participant["vc_min_mem"],
-                vc_max_mem=participant["vc_max_mem"],
-                vc_force_restart=participant["vc_force_restart"],
-                remote_signer_min_cpu=participant["remote_signer_min_cpu"],
-                remote_signer_max_cpu=participant["remote_signer_max_cpu"],
-                remote_signer_min_mem=participant["remote_signer_min_mem"],
-                remote_signer_max_mem=participant["remote_signer_max_mem"],
-                dirk_image=participant["dirk_image"],
-                dirk_peer_count=participant["dirk_peer_count"],
-                dirk_signing_threshold=participant["dirk_signing_threshold"],
-                dirk_cluster_id=participant["dirk_cluster_id"],
-                vouch_multiinstance_style=participant["vouch_multiinstance_style"],
-                vouch_multiinstance_attester_delay=participant[
-                    "vouch_multiinstance_attester_delay"
-                ],
-                vouch_multiinstance_proposer_delay=participant[
-                    "vouch_multiinstance_proposer_delay"
-                ],
-                vouch_account_start=participant["vouch_account_start"],
-                vouch_account_count=participant["vouch_account_count"],
-                vouch_default_strategies=participant["vouch_default_strategies"],
-                vouch_strategies_yaml=participant["vouch_strategies_yaml"],
-                validator_count=participant["validator_count"],
-                tolerations=participant["tolerations"],
-                node_selectors=participant["node_selectors"],
-                snooper_enabled=participant["snooper_enabled"],
-                count=participant["count"],
-                ethereum_metrics_exporter_enabled=participant[
-                    "ethereum_metrics_exporter_enabled"
-                ],
-                xatu_sentry_enabled=participant["xatu_sentry_enabled"],
-                prometheus_config=struct(
-                    scrape_interval=participant["prometheus_config"]["scrape_interval"],
-                    labels=participant["prometheus_config"]["labels"],
-                ),
-                blobber_enabled=participant["blobber_enabled"],
-                blobber_extra_params=participant["blobber_extra_params"],
-                blobber_image=participant["blobber_image"],
-                keymanager_enabled=participant["keymanager_enabled"],
-                vc_beacon_node_indices=participant["vc_beacon_node_indices"],
-                checkpoint_sync_enabled=participant["checkpoint_sync_enabled"]
-                if participant["checkpoint_sync_enabled"] != None
-                else result["checkpoint_sync_enabled"],
-                skip_start=participant["skip_start"],
-            )
-            for participant in result["participants"]
-        ],
+    participants = [
+        struct(
+            el_type=participant["el_type"],
+            el_image=participant["el_image"],
+            el_binary_path=participant["el_binary_path"],
+            el_log_level=participant["el_log_level"],
+            el_storage_type=participant["el_storage_type"],
+            el_volume_size=participant["el_volume_size"],
+            el_extra_params=participant["el_extra_params"],
+            el_extra_mounts=participant["el_extra_mounts"],
+            el_devices=participant["el_devices"],
+            el_extra_env_vars=participant["el_extra_env_vars"],
+            el_extra_labels=participant["el_extra_labels"],
+            el_tolerations=participant["el_tolerations"],
+            cl_type=participant["cl_type"],
+            cl_image=participant["cl_image"],
+            cl_binary_path=participant["cl_binary_path"],
+            cl_log_level=participant["cl_log_level"],
+            cl_volume_size=participant["cl_volume_size"],
+            cl_extra_env_vars=participant["cl_extra_env_vars"],
+            cl_tolerations=participant["cl_tolerations"],
+            use_separate_vc=participant["use_separate_vc"],
+            vc_type=participant["vc_type"],
+            vc_image=participant["vc_image"],
+            vc_binary_path=participant["vc_binary_path"],
+            vc_log_level=participant["vc_log_level"],
+            vc_tolerations=participant["vc_tolerations"],
+            cl_extra_params=participant["cl_extra_params"],
+            cl_extra_mounts=participant["cl_extra_mounts"],
+            cl_devices=participant["cl_devices"],
+            cl_extra_labels=participant["cl_extra_labels"],
+            vc_extra_params=participant["vc_extra_params"],
+            vc_extra_mounts=participant["vc_extra_mounts"],
+            vc_devices=participant["vc_devices"],
+            vc_extra_env_vars=participant["vc_extra_env_vars"],
+            vc_extra_labels=participant["vc_extra_labels"],
+            use_remote_signer=participant["use_remote_signer"],
+            remote_signer_type=participant["remote_signer_type"],
+            remote_signer_image=participant["remote_signer_image"],
+            remote_signer_tolerations=participant["remote_signer_tolerations"],
+            remote_signer_extra_env_vars=participant["remote_signer_extra_env_vars"],
+            remote_signer_extra_params=participant["remote_signer_extra_params"],
+            remote_signer_extra_labels=participant["remote_signer_extra_labels"],
+            builder_network_params=participant["builder_network_params"],
+            supernode=participant["supernode"],
+            el_min_cpu=participant["el_min_cpu"],
+            el_max_cpu=participant["el_max_cpu"],
+            el_min_mem=participant["el_min_mem"],
+            el_max_mem=participant["el_max_mem"],
+            el_force_restart=participant["el_force_restart"],
+            cl_min_cpu=participant["cl_min_cpu"],
+            cl_max_cpu=participant["cl_max_cpu"],
+            cl_min_mem=participant["cl_min_mem"],
+            cl_max_mem=participant["cl_max_mem"],
+            cl_force_restart=participant["cl_force_restart"],
+            vc_min_cpu=participant["vc_min_cpu"],
+            vc_max_cpu=participant["vc_max_cpu"],
+            vc_min_mem=participant["vc_min_mem"],
+            vc_max_mem=participant["vc_max_mem"],
+            vc_force_restart=participant["vc_force_restart"],
+            remote_signer_min_cpu=participant["remote_signer_min_cpu"],
+            remote_signer_max_cpu=participant["remote_signer_max_cpu"],
+            remote_signer_min_mem=participant["remote_signer_min_mem"],
+            remote_signer_max_mem=participant["remote_signer_max_mem"],
+            dirk_image=participant["dirk_image"],
+            dirk_peer_count=participant["dirk_peer_count"],
+            dirk_signing_threshold=participant["dirk_signing_threshold"],
+            dirk_cluster_id=participant["dirk_cluster_id"],
+            vouch_multiinstance_style=participant["vouch_multiinstance_style"],
+            vouch_multiinstance_attester_delay=participant[
+                "vouch_multiinstance_attester_delay"
+            ],
+            vouch_multiinstance_proposer_delay=participant[
+                "vouch_multiinstance_proposer_delay"
+            ],
+            vouch_package_strategies=participant["vouch_package_strategies"],
+            vouch_strategies_yaml=participant["vouch_strategies_yaml"],
+            validator_count=participant["validator_count"],
+            tolerations=participant["tolerations"],
+            node_selectors=participant["node_selectors"],
+            snooper_enabled=participant["snooper_enabled"],
+            count=participant["count"],
+            ethereum_metrics_exporter_enabled=participant[
+                "ethereum_metrics_exporter_enabled"
+            ],
+            xatu_sentry_enabled=participant["xatu_sentry_enabled"],
+            prometheus_config=struct(
+                scrape_interval=participant["prometheus_config"]["scrape_interval"],
+                labels=participant["prometheus_config"]["labels"],
+            ),
+            blobber_enabled=participant["blobber_enabled"],
+            blobber_extra_params=participant["blobber_extra_params"],
+            blobber_image=participant["blobber_image"],
+            keymanager_enabled=participant["keymanager_enabled"],
+            vc_beacon_node_indices=participant["vc_beacon_node_indices"],
+            checkpoint_sync_enabled=participant["checkpoint_sync_enabled"]
+            if participant["checkpoint_sync_enabled"] != None
+            else result["checkpoint_sync_enabled"],
+            skip_start=participant["skip_start"],
+        )
+        for participant in result["participants"]
+    ]
+    vouch_participants = [
+        p for p in participants if p.vc_type == constants.VC_TYPE.vouch
+    ]
+    if (
+        vouch_participants
+        and result["network_params"]["network"] != constants.NETWORK_NAME.kurtosis
+    ):
+        fail(
+            "Vouch participants need network: kurtosis, where their DKG validators enter genesis"
+        )
+    if result["certmanager_test_enabled"]:
+        if not vouch_participants:
+            fail("certmanager_test_enabled requires at least one Vouch participant")
+        for participant in vouch_participants:
+            images = [participant.vc_image]
+            if participant.validator_count > 0:
+                images.append(participant.dirk_image)
+            for image in images:
+                if "@sha256:" not in image:
+                    fail(
+                        "certmanager_test_enabled requires digest-pinned Vouch and Dirk images, got {0}".format(
+                            image
+                        )
+                    )
+    return struct(
+        participants=participants,
+        dirk_cluster_plan=dirk_clusters.plan_clusters(participants),
         network_params=struct(
             preregistered_validator_keys_mnemonic=result["network_params"][
                 "preregistered_validator_keys_mnemonic"
@@ -1290,9 +1325,6 @@ def input_parser(plan, input_args):
             env=result["trueblocks_params"]["env"],
         ),
     )
-    # Fail at parse time on invalid Vouch/Dirk layouts.
-    dirk_clusters.plan_clusters(parsed.participants)
-    return parsed
 
 
 def _validate_ere_gpu_config(zkvms):
@@ -1627,19 +1659,17 @@ def parse_network_params(plan, input_args):
                     )
                 )
 
-        vouch_fields_set = (
-            participant["dirk_cluster_id"] != None
-            or participant["vouch_multiinstance_style"] != ""
-            or participant["vouch_multiinstance_attester_delay"] != "0s"
-            or participant["vouch_multiinstance_proposer_delay"] != "0s"
-            or participant["vouch_account_start"] != None
-            or participant["vouch_account_count"] != None
-            or participant["vouch_default_strategies"]
-            or participant["vouch_strategies_yaml"] != ""
-        )
+        defaults = default_participant()
+        vouch_fields_set = [
+            field for field in VOUCH_FIELDS if participant[field] != defaults[field]
+        ]
         if participant["vc_type"] != constants.VC_TYPE.vouch:
             if vouch_fields_set:
-                fail("Vouch configuration fields require vc_type: vouch")
+                fail(
+                    "Vouch configuration fields require vc_type: vouch, got {0}".format(
+                        ", ".join(vouch_fields_set)
+                    )
+                )
         else:
             if participant["vouch_multiinstance_style"] not in ["", "static-delay"]:
                 fail(
@@ -1647,15 +1677,6 @@ def parse_network_params(plan, input_args):
                         participant["vouch_multiinstance_style"]
                     )
                 )
-            has_account_start = participant["vouch_account_start"] != None
-            has_account_count = participant["vouch_account_count"] != None
-            if has_account_start != has_account_count:
-                fail("Vouch account start and count must be supplied together")
-            if has_account_start:
-                if participant["vouch_account_start"] < 0:
-                    fail("Vouch account start must be non-negative")
-                if participant["vouch_account_count"] <= 0:
-                    fail("Vouch account count must be positive")
 
         validator_count = participant["validator_count"]
         if validator_count == None:
@@ -1667,10 +1688,17 @@ def parse_network_params(plan, input_args):
             participant["vc_type"] == constants.VC_TYPE.vouch
             and participant["validator_count"] == 0
         ):
-            if participant["dirk_cluster_id"] == None:
-                fail("Passive Vouch requires an explicit dirk_cluster_id")
-            if participant["vouch_account_start"] == None:
-                fail("Passive Vouch requires an explicit account range")
+            ignored = [
+                field
+                for field in ["dirk_image", "dirk_peer_count", "dirk_signing_threshold"]
+                if participant[field] != defaults[field]
+            ]
+            if ignored:
+                fail(
+                    "{0} apply to the active Vouch that creates the cluster, not a passive one".format(
+                        ", ".join(ignored)
+                    )
+                )
 
         actual_num_validators += participant["validator_count"]
 
@@ -2142,9 +2170,7 @@ def default_participant():
         "vouch_multiinstance_style": "",
         "vouch_multiinstance_attester_delay": "0s",
         "vouch_multiinstance_proposer_delay": "0s",
-        "vouch_account_start": None,
-        "vouch_account_count": None,
-        "vouch_default_strategies": False,
+        "vouch_package_strategies": True,
         "vouch_strategies_yaml": "",
         "validator_count": None,
         "node_selectors": {},

@@ -60,7 +60,7 @@ permissions:
 def launch_dirk_cluster(
     plan,
     dirk_image,
-    peer_count,
+    service_names,
     cert_result,
     vouch_client_name,
     tolerations,
@@ -73,24 +73,19 @@ def launch_dirk_cluster(
     Args:
         plan: The Kurtosis plan.
         dirk_image: Docker image for Dirk.
-        peer_count: Number of Dirk instances to launch.
+        service_names: Dirk service names, one per peer.
         cert_result: Return value from certs.generate_certs().
         vouch_client_name: CN of the Vouch client certificate.
         tolerations: Kubernetes tolerations.
         node_selectors: Kubernetes node selectors.
-
-    Returns:
-        A list of Dirk service names.
     """
-    dirk_service_names = [
-        "{0}-{1}".format(cluster_prefix, i) for i in range(1, peer_count + 1)
-    ]
+    peer_count = len(service_names)
 
     # Build the peers section (self-reference required even for single node)
     peer_lines = []
     for i in range(1, peer_count + 1):
         peer_lines.append(
-            "  {0}: {1}:{2}".format(i, dirk_service_names[i - 1], DIRK_GRPC_PORT_NUM)
+            "  {0}: {1}:{2}".format(i, service_names[i - 1], DIRK_GRPC_PORT_NUM)
         )
     peer_entries = "\n".join(peer_lines)
 
@@ -113,7 +108,7 @@ def launch_dirk_cluster(
 
     # Render config and launch each Dirk instance
     for i in range(1, peer_count + 1):
-        service_name = dirk_service_names[i - 1]
+        service_name = service_names[i - 1]
 
         # Render the config file for this instance
         config_template_data = {
@@ -150,8 +145,6 @@ def launch_dirk_cluster(
         )
 
         plan.add_service(service_name, config)
-
-    return dirk_service_names
 
 
 def _create_wallet_artifacts(plan, peer_count, cluster_prefix):

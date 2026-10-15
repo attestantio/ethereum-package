@@ -73,14 +73,16 @@ def launch_participant_network(
 
     # Phase 0: create Dirk clusters and their DKG validators before genesis.
     dkg_validators_artifact = None
-    cluster_plan = dirk_clusters.plan_clusters(args_with_right_defaults.participants)
+    cluster_plan = args_with_right_defaults.dirk_cluster_plan
+    # In Tempo mTLS mode only Vouch, which holds a client certificate, traces.
+    plain_tempo_url = tempo_otlp_grpc_url if not tempo_mtls_enabled else None
     participant_cluster_ids = cluster_plan.cluster_ids
     vouch_account_ranges = cluster_plan.account_ranges
     cluster_dirk_contexts = {}
     cluster_validator_artifacts = []
     certmanager_cluster_info = {}
     for cluster in cluster_plan.clusters:
-        prefix = dirk_certs.cluster_prefix(cluster.id)
+        prefix = dirk_clusters.cluster_prefix(cluster.id)
         service_names = [
             "{0}-{1}".format(prefix, i) for i in range(1, cluster.peer_count + 1)
         ]
@@ -90,12 +92,12 @@ def launch_participant_network(
         dirk_launcher.launch_dirk_cluster(
             plan,
             dirk_image=cluster.image,
-            peer_count=cluster.peer_count,
+            service_names=service_names,
             cert_result=cert_result,
             vouch_client_name=VOUCH_CLIENT_NAME,
             tolerations=global_tolerations,
             node_selectors=global_node_selectors,
-            tempo_otlp_grpc_url=tempo_otlp_grpc_url if not tempo_mtls_enabled else None,
+            tempo_otlp_grpc_url=plain_tempo_url,
             cluster_prefix=prefix,
         )
         dirk_dkg.run_dkg_ceremony(
@@ -240,7 +242,6 @@ def launch_participant_network(
             network_params.network,
             global_tolerations,
             global_node_selectors,
-            additional_validators_artifact=dkg_validators_artifact,
         )
     elif network_params.network == constants.NETWORK_NAME.ephemery:
         # We are running an ephemery network
@@ -382,7 +383,7 @@ def launch_participant_network(
         global_node_selectors,
         global_tolerations,
         persistent,
-        tempo_otlp_grpc_url,
+        plain_tempo_url,
         otel_otlp_grpc_url,
         otel_otlp_http_traces_url,
         num_participants,

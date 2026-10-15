@@ -109,7 +109,7 @@ def get_config(
     else:
         accounts_yaml = "      - '{0}'\n".format(constants.DIRK_WALLET_NAME)
 
-    if participant.vouch_default_strategies:
+    if not participant.vouch_package_strategies:
         strategies_yaml = ""
     elif participant.vouch_strategies_yaml != "":
         strategies_yaml = participant.vouch_strategies_yaml

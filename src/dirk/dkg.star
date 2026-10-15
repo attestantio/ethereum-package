@@ -1,4 +1,5 @@
 constants = import_module("../package_io/constants.star")
+dirk_clusters = import_module("../package_io/dirk_clusters.star")
 
 
 def run_dkg_ceremony(
@@ -62,7 +63,7 @@ def run_dkg_ceremony(
 
     dkg_timeout = "1800s" if validator_count >= 128 else "300s"
     plan.run_sh(
-        name="dkg-ceremony{0}".format(_suffix(cluster_id)),
+        name="dkg-ceremony{0}".format(dirk_clusters.artifact_suffix(cluster_id)),
         description="Running DKG ceremony to create {0} distributed validator account(s)".format(
             validator_count
         ),
@@ -158,7 +159,9 @@ def extract_dkg_validators_file(
     ]
 
     result = plan.run_sh(
-        name="extract-dkg-validators{0}".format(_suffix(cluster_id)),
+        name="extract-dkg-validators{0}".format(
+            dirk_clusters.artifact_suffix(cluster_id)
+        ),
         description="Extracting {0} DKG composite public keys for genesis".format(
             validator_count
         ),
@@ -170,14 +173,12 @@ def extract_dkg_validators_file(
         store=[
             StoreSpec(
                 src="/out/",
-                name="dkg-validators-file{0}".format(_suffix(cluster_id)),
+                name="dkg-validators-file{0}".format(
+                    dirk_clusters.artifact_suffix(cluster_id)
+                ),
             ),
         ],
         wait="300s",
     )
 
     return result.files_artifacts[0]
-
-
-def _suffix(cluster_id):
-    return "-{0}".format(cluster_id) if cluster_id != "" else ""

@@ -112,7 +112,7 @@ def generate_validator_keystores(plan, mnemonic, participants, docker_cache_para
 
     for idx, participant in enumerate(participants):
         output_dirpath = NODE_KEYSTORES_OUTPUT_DIRPATH_FORMAT_STR.format(idx, "")
-        if not _has_mnemonic_keys(participant):
+        if not shared_utils.has_mnemonic_keys(participant):
             all_output_dirpaths.append(output_dirpath)
             continue
 
@@ -152,7 +152,7 @@ def generate_validator_keystores(plan, mnemonic, participants, docker_cache_para
     keystore_files = []
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
-        if not _has_mnemonic_keys(participant):
+        if not shared_utils.has_mnemonic_keys(participant):
             keystore_files.append(None)
             continue
 
@@ -243,7 +243,7 @@ def generate_validator_keystores_in_parallel(
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
         output_dirpath = NODE_KEYSTORES_OUTPUT_DIRPATH_FORMAT_STR.format(idx, "")
-        if not _has_mnemonic_keys(participant):
+        if not shared_utils.has_mnemonic_keys(participant):
             all_generation_commands.append(None)
             all_output_dirpaths.append(None)
             finished_files_to_verify.append(None)
@@ -315,7 +315,7 @@ def generate_validator_keystores_in_parallel(
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
         output_dirpath = all_output_dirpaths[idx]
-        if not _has_mnemonic_keys(participant):
+        if not shared_utils.has_mnemonic_keys(participant):
             keystore_files.append(None)
             continue
         service_name = service_names[idx]
@@ -380,11 +380,3 @@ def generate_validator_keystores_in_parallel(
 
     # we don't cleanup the containers as its a costly operation
     return result
-
-
-def _has_mnemonic_keys(participant):
-    # Vouch validators come from the Dirk DKG, not the mnemonic.
-    return (
-        participant.validator_count > 0
-        and participant.vc_type != constants.VC_TYPE.vouch
-    )

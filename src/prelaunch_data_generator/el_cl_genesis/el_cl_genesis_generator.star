@@ -83,17 +83,14 @@ def generate_el_cl_genesis_data(
     if network_params.network == constants.NETWORK_NAME.kurtosis:
         # A private network must not inherit public bootnodes from the generator.
         genesis_run_cmd += " && : > /network-configs/bootstrap_nodes.txt && : > /network-configs/bootstrap_nodes.yaml"
-    # Genesis must hold exactly the preregistered keys plus any DKG validators.
-    # shortcut: skipped with additional_mnemonics, whose builder entries may sit
-    # outside the validator list; count them once that is confirmed.
-    if (
-        network_params.network == constants.NETWORK_NAME.kurtosis
-        and not _has_additional_mnemonics(network_params)
-    ):
+        # Genesis holds the preregistered keys plus any DKG validators. With
+        # additional_mnemonics it may hold more (builder entries may or may not
+        # be validators), so the count is then a lower bound.
+        operator = ">=" if _has_additional_mnemonics(network_params) else "=="
         genesis_run_cmd += (
             " && extra=$(grep -c '^0x' /additional-validators/validators.txt 2>/dev/null || true)"
-            + " && jq -e --argjson n $(( {0} + ${{extra:-0}} )) '.validators | length == $n'".format(
-                total_num_validator_keys_to_preregister
+            + " && jq -e --argjson n $(( {0} + ${{extra:-0}} )) '.validators | length {1} $n'".format(
+                total_num_validator_keys_to_preregister, operator
             )
             + " /network-configs/parsed/parsedConsensusGenesis.json > /dev/null"
         )

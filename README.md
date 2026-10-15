@@ -576,9 +576,11 @@ participants:
     # instead of the mnemonic, and validator_count: 0 makes the Vouch passive
     validator_count: null
 
-    # Vouch and Dirk fields (vc_type: vouch only)
+    # Vouch and Dirk fields (vc_type: vouch only; requires network: kurtosis)
     # An active Vouch (validator_count > 0) creates a Dirk cluster holding its
-    # validators. A passive Vouch (validator_count: 0) joins an existing cluster.
+    # validators. A passive Vouch (validator_count: 0) joins an existing cluster
+    # by dirk_cluster_id and serves all of its accounts.
+    # The dirk_* settings below belong to the active Vouch that creates a cluster.
     # Dirk image for the cluster this participant creates
     # Defaults to attestant/dirk:1.2.1 (pinned by digest)
     dirk_image: ""
@@ -590,20 +592,16 @@ participants:
     # active Vouch exists, and on every passive Vouch. Dirk services are named
     # dirk-<id>-<n>, or dirk-<n> for the single unnamed cluster. Defaults to null
     dirk_cluster_id: null
-    # Account range a passive Vouch manages within its cluster. Required, and only
-    # allowed, on a passive Vouch. Defaults to null
-    vouch_account_start: null
-    vouch_account_count: null
-    # Multi-instance style: "" (off) or "static-delay". Instances may share an
-    # account range only when both use static-delay. Defaults to ""
+    # Multi-instance style: "" (off) or "static-delay". Every Vouch sharing a
+    # cluster must use static-delay. Defaults to ""
     vouch_multiinstance_style: ""
     # Static-delay attester and proposer delays. Defaults to "0s"
     vouch_multiinstance_attester_delay: "0s"
     vouch_multiinstance_proposer_delay: "0s"
-    # By default the package sets strategies that use every beacon node (majority
-    # attestation data, best proposals, multinode submitter). Set to true to run
-    # with Vouch's own default strategies instead. Defaults to false
-    vouch_default_strategies: false
+    # Use the package's strategies, which spread work over every beacon node
+    # (majority attestation data, best proposals, multinode submitter). Set to
+    # false to run with Vouch's own default strategies. Defaults to true
+    vouch_package_strategies: true
     # Strategies YAML that replaces the package's strategies. Defaults to ""
     vouch_strategies_yaml: ""
 
@@ -1438,14 +1436,14 @@ tempo_params:
   image: "grafana/tempo:2.7.2"
 
 # Serve Tempo's OTLP receivers over mTLS with certificates from a dedicated CA.
-# Vouch traces with a client certificate; Dirk tracing is turned off.
+# Vouch traces with a client certificate; Dirk and the CL clients do not trace.
 # Requires tempo in additional_services. Defaults to false
 tempo_mtls_enabled: false
 
 # After first finality, check the Vouch/Dirk certificate setup: exact DNS SAN on
 # every Dirk peer, Vouch certificate validity gauges, successful signing and
-# Tempo traces. Requires a Vouch participant and digest-pinned vc_image and
-# dirk_image on every Vouch participant. Defaults to false
+# Tempo traces. Requires a Vouch participant, and digest-pinned Vouch and Dirk
+# images (the defaults are). Defaults to false
 certmanager_test_enabled: false
 
 # Configuration place for the assertoor testing tool - https://github.com/ethpandaops/assertoor

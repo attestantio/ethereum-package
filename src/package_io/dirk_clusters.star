@@ -10,8 +10,8 @@ def plan_clusters(participants):
 
     Each active Vouch (validator_count > 0) creates one cluster holding
     validator_count accounts, numbered after the previous cluster's. A passive
-    Vouch (validator_count == 0) joins an existing cluster with an explicit
-    account range.
+    Vouch (validator_count == 0) joins an existing cluster by dirk_cluster_id
+    and serves all of its accounts.
 
     Returns a struct with:
       clusters: cluster structs in creation order (id, peer_count, threshold,
@@ -22,7 +22,6 @@ def plan_clusters(participants):
     clusters = []
     clusters_by_id = {}
     cluster_ids = {}
-    account_ranges = {}
     implicit_active = 0
     next_account = 0
 
@@ -31,15 +30,6 @@ def plan_clusters(participants):
             continue
         if participant.validator_count == 0:
             continue
-        if (
-            participant.vouch_account_start != None
-            or participant.vouch_account_count != None
-        ):
-            fail(
-                "Vouch participant #{0}: vouch_account_start and vouch_account_count apply to passive Vouch (validator_count: 0) only".format(
-                    index + 1
-                )
-            )
         cluster_id = participant.dirk_cluster_id
         if cluster_id == None:
             cluster_id = DEFAULT_CLUSTER_ID
@@ -78,9 +68,6 @@ def plan_clusters(participants):
         clusters.append(cluster)
         clusters_by_id[cluster_id] = cluster
         cluster_ids[index] = cluster_id
-        account_ranges[index] = struct(
-            start=next_account, count=participant.validator_count
-        )
         next_account += participant.validator_count
 
     if implicit_active > 0 and len(clusters) != 1:
@@ -92,7 +79,7 @@ def plan_clusters(participants):
         if participant.validator_count != 0:
             continue
         cluster_id = participant.dirk_cluster_id
-        if cluster_id == None or cluster_id == DEFAULT_CLUSTER_ID:
+        if cluster_id == None:
             fail("Passive Vouch requires an explicit dirk_cluster_id")
         _check_cluster_id(cluster_id)
         if cluster_id not in clusters_by_id:
@@ -101,52 +88,43 @@ def plan_clusters(participants):
                     index + 1, cluster_id
                 )
             )
-        cluster = clusters_by_id[cluster_id]
-        start = participant.vouch_account_start
-        count = participant.vouch_account_count
-        if (
-            start < cluster.account_start
-            or start + count > cluster.account_start + cluster.validator_count
-        ):
-            fail(
-                "Vouch participant #{0}: account range [{1},{2}) is outside cluster '{3}' bounds [{4},{5})".format(
-                    index + 1,
-                    start,
-                    start + count,
-                    cluster_id,
-                    cluster.account_start,
-                    cluster.account_start + cluster.validator_count,
-                )
-            )
         cluster_ids[index] = cluster_id
-        account_ranges[index] = struct(start=start, count=count)
 
-    # Instances may share accounts only as identical static-delay ranges, so
-    # multi-instance arbitration decides which one signs.
-    for i, first in account_ranges.items():
-        for j, second in account_ranges.items():
-            if i >= j or cluster_ids[i] != cluster_ids[j]:
+    # Instances sharing a cluster sign the same accounts, so multi-instance
+    # arbitration must decide which one signs.
+    for i, first in cluster_ids.items():
+        for j, second in cluster_ids.items():
+            if i >= j or first != second:
                 continue
-            if (
-                first.start < second.start + second.count
-                and second.start < first.start + first.count
-            ) and (
-                first.start != second.start
-                or first.count != second.count
-                or participants[i].vouch_multiinstance_style != "static-delay"
-                or participants[j].vouch_multiinstance_style != "static-delay"
-            ):
-                fail(
-                    "Vouch participants #{0} and #{1} have an invalid overlapping account range".format(
-                        i + 1, j + 1
+            for k in (i, j):
+                if participants[k].vouch_multiinstance_style != "static-delay":
+                    fail(
+                        "Vouch participants #{0} and #{1} share Dirk cluster '{2}', so both need vouch_multiinstance_style: static-delay".format(
+                            i + 1, j + 1, first
+                        )
                     )
-                )
 
     return struct(
         clusters=clusters,
         cluster_ids=cluster_ids,
-        account_ranges=account_ranges,
+        account_ranges={
+            index: struct(
+                start=clusters_by_id[cluster_id].account_start,
+                count=clusters_by_id[cluster_id].validator_count,
+            )
+            for index, cluster_id in cluster_ids.items()
+        },
     )
+
+
+def cluster_prefix(cluster_id):
+    """Service and artifact prefix: dirk-<id>, or dirk for the default cluster."""
+    return "dirk-{0}".format(cluster_id) if cluster_id != DEFAULT_CLUSTER_ID else "dirk"
+
+
+def artifact_suffix(cluster_id):
+    """Suffix for per-cluster run_sh names: -<id>, or nothing for the default cluster."""
+    return "-{0}".format(cluster_id) if cluster_id != DEFAULT_CLUSTER_ID else ""
 
 
 def _check_cluster_id(cluster_id):
