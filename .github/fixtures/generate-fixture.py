@@ -35,6 +35,7 @@ FAR_FUTURE = 18446744073709551615
 # Epoch the devnet's next fork moves to, so every run crosses its boundary.
 NEXT_FORK_EPOCH = 2
 GENESIS_DELAY = 20
+SLOTS_PER_EPOCH = {"mainnet": 32, "minimal": 8}
 FORKS = ["altair", "bellatrix", "capella", "deneb", "electra", "fulu", "gloas", "heze"]
 MAINNET_LIVE_FORKS = ["altair", "bellatrix", "capella", "deneb", "electra", "fulu"]
 BPO_SLOTS = 5
@@ -53,7 +54,7 @@ def fetch(url):
 
 
 def fetch_devnet(source):
-    base = "https://raw.githubusercontent.com/{repo}/{commit}/network-configs/{devnet}/metadata".format(**source)
+    base = f"https://raw.githubusercontent.com/{source['repo']}/{source['commit']}/network-configs/{source['devnet']}/metadata"
     # Upstream config.yaml has unquoted hex values; load them as strings.
     config = yaml.load(fetch(base + "/config.yaml"), Loader=yaml.BaseLoader)
     genesis = json.loads(fetch(base + "/genesis.json"))
@@ -68,12 +69,14 @@ def rebase(epoch, next_fork):
 
 
 def next_fork_params(config, genesis):
-    epochs = {fork: int(config[fork.upper() + "_FORK_EPOCH"]) for fork in FORKS}
+    epochs = {fork: int(config[f"{fork.upper()}_FORK_EPOCH"]) for fork in FORKS}
     scheduled = [e for e in epochs.values() if e not in (0, FAR_FUTURE)]
     if not scheduled:
         sys.exit("source schedules no fork after genesis")
     next_fork = min(scheduled)
     slot_ms = int(config["SLOT_DURATION_MS"])
+    epoch_seconds = slot_ms // 1000 * SLOTS_PER_EPOCH[config["PRESET_BASE"]]
+    genesis_time = int(genesis["timestamp"], 0) if isinstance(genesis["timestamp"], str) else genesis["timestamp"]
 
     params = {
         "network": "kurtosis",
@@ -89,24 +92,29 @@ def next_fork_params(config, genesis):
     if "MIN_BUILDER_WITHDRAWABILITY_DELAY" in config:
         params["min_builder_withdrawability_delay"] = int(config["MIN_BUILDER_WITHDRAWABILITY_DELAY"])
     for fork in FORKS:
-        params[fork + "_fork_epoch"] = rebase(epochs[fork], next_fork)
-        params[fork + "_fork_version"] = config[fork.upper() + "_FORK_VERSION"]
+        params[f"{fork}_fork_epoch"] = rebase(epochs[fork], next_fork)
+        params[f"{fork}_fork_version"] = config[f"{fork.upper()}_FORK_VERSION"]
 
-    electra_max = int(config["MAX_BLOBS_PER_BLOCK_ELECTRA"])
-    params["max_blobs_per_block_electra"] = electra_max
-    params["target_blobs_per_block_electra"] = electra_max * 2 // 3
-    schedule = config.get("BLOB_SCHEDULE", [])
-    if len(schedule) > BPO_SLOTS:
-        sys.exit("BLOB_SCHEDULE has more entries than the package's bpo slots")
+    # The EL genesis lists every blob step with its target and fraction. The CL
+    # config's BLOB_SCHEDULE collapses steps that share an epoch, so it is not used.
+    schedule = genesis["config"]["blobSchedule"]
+    prague = schedule["prague"]
+    params["max_blobs_per_block_electra"] = prague["max"]
+    params["target_blobs_per_block_electra"] = prague["target"]
+    params["base_fee_update_fraction_electra"] = prague["baseFeeUpdateFraction"]
+    if f"bpo{BPO_SLOTS + 1}" in schedule:
+        sys.exit("blobSchedule has more BPO steps than the package supports")
     for n in range(1, BPO_SLOTS + 1):
-        if n <= len(schedule):
-            entry = schedule[n - 1]
-            blobs = int(entry["MAX_BLOBS_PER_BLOCK"])
-            params["bpo_%d_epoch" % n] = rebase(int(entry["EPOCH"]), next_fork)
-            params["bpo_%d_max_blobs" % n] = blobs
-            params["bpo_%d_target_blobs" % n] = blobs * 2 // 3
-        else:
-            params["bpo_%d_epoch" % n] = FAR_FUTURE
+        step = schedule.get(f"bpo{n}")
+        if step is None:
+            params[f"bpo_{n}_epoch"] = FAR_FUTURE
+            continue
+        activation = genesis["config"][f"bpo{n}Time"]
+        epoch = 0 if activation <= genesis_time else (activation - genesis_time) // epoch_seconds
+        params[f"bpo_{n}_epoch"] = rebase(epoch, next_fork)
+        params[f"bpo_{n}_max_blobs"] = step["max"]
+        params[f"bpo_{n}_target_blobs"] = step["target"]
+        params[f"bpo_{n}_base_fee_update_fraction"] = step["baseFeeUpdateFraction"]
 
     gas = config.get("GAS_LIMIT_SCHEDULE", [])
     if gas:
@@ -119,24 +127,26 @@ def next_fork_params(config, genesis):
 
 
 def mainnet_params():
+    # Package defaults today, written out so a default change upstream shows as drift.
     params = {"network": "kurtosis", "preset": "mainnet"}
     for fork in FORKS:
-        params[fork + "_fork_epoch"] = 0 if fork in MAINNET_LIVE_FORKS else FAR_FUTURE
+        params[f"{fork}_fork_epoch"] = 0 if fork in MAINNET_LIVE_FORKS else FAR_FUTURE
     return params
 
 
-def render_value(value):
-    if isinstance(value, str):
-        return '"%s"' % value
-    if isinstance(value, list):
-        items = ", ".join("{%s}" % ", ".join("%s: %s" % (k, render_value(v)) for k, v in item.items()) for item in value)
-        return "[%s]" % items
-    return str(value)
+def apply_overrides(params, overrides):
+    """Apply layout overrides, keeping the two slot-length fields consistent."""
+    params.update(overrides)
+    if "seconds_per_slot" in overrides and "slot_duration_ms" not in overrides and "slot_duration_ms" in params:
+        params["slot_duration_ms"] = overrides["seconds_per_slot"] * 1000
+    if "slot_duration_ms" in overrides and "seconds_per_slot" not in overrides and "seconds_per_slot" in params:
+        params["seconds_per_slot"] = overrides["slot_duration_ms"] // 1000
+    return params
 
 
 def strip_source(text):
-    """Remove the top-level fixture_source block from the layout text."""
-    return re.sub(r"(?m)^fixture_source:\n(?:[ #].*\n|\n)*", "", text)
+    """Remove the top-level fixture_source block (its indented and blank lines)."""
+    return re.sub(r"(?m)^fixture_source:\n(?:[ \t].*\n|\n)*", "", text)
 
 
 def generate(layout_path, fetch_source=fetch_devnet):
@@ -144,25 +154,23 @@ def generate(layout_path, fetch_source=fetch_devnet):
     layout = yaml.safe_load(text)
     source = layout.get("fixture_source")
     if not source:
-        sys.exit("%s has no fixture_source" % layout_path)
+        sys.exit(f"{layout_path} has no fixture_source")
     if "network_params" in layout:
-        sys.exit("%s sets network_params; put overrides under fixture_source.network_params" % layout_path)
+        sys.exit(f"{layout_path} sets network_params; put overrides under fixture_source.network_params")
 
     if source["mode"] == "next-fork":
         params = next_fork_params(*fetch_source(source))
-        header = "# Generated from {repo}@{commit} {devnet}".format(**source)
+        header = f"# Generated from {source['repo']}@{source['commit']} {source['devnet']}"
     elif source["mode"] == "mainnet":
         params = mainnet_params()
         header = "# Generated in mainnet mode"
     else:
-        sys.exit("unknown fixture_source mode %r" % source["mode"])
-    params.update(source.get("network_params") or {})
+        sys.exit(f"unknown fixture_source mode {source['mode']!r}")
+    apply_overrides(params, source.get("network_params") or {})
 
-    lines = [header + " by .github/fixtures/generate-fixture.py.", "# Edit the layout and regenerate; do not edit this file.", ""]
-    body = strip_source(text).rstrip("\n")
-    lines += [body, "", "network_params:"]
-    lines += ["  %s: %s" % (key, render_value(value)) for key, value in params.items()]
-    return "\n".join(lines) + "\n"
+    rendered = yaml.safe_dump({"network_params": params}, sort_keys=False, default_flow_style=None, width=1000)
+    lines = [f"{header} by .github/fixtures/generate-fixture.py.", "# Edit the layout and regenerate; do not edit this file.", ""]
+    return "\n".join(lines) + strip_source(text).rstrip("\n") + "\n\n" + rendered
 
 
 def drift(layout, fixture, fetch_source=fetch_devnet):
@@ -172,20 +180,20 @@ def drift(layout, fixture, fetch_source=fetch_devnet):
     return list(difflib.unified_diff(current.splitlines(True), output.splitlines(True), str(fixture), "regenerated"))
 
 
-def main():
+def main(argv=None, fetch_source=fetch_devnet):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("layouts", nargs="*", type=pathlib.Path, help="layouts to generate (default: all)")
     parser.add_argument("--check", action="store_true", help="fail if a committed fixture differs")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     failed = False
     for layout in args.layouts or sorted(LAYOUTS.glob("*.yaml")):
         fixture = TESTS / layout.name
         if not args.check:
-            fixture.write_text(generate(layout))
-            print("wrote %s" % fixture.relative_to(ROOT))
+            fixture.write_text(generate(layout, fetch_source))
+            print(f"wrote {fixture.relative_to(ROOT)}")
             continue
-        diff = drift(layout, fixture)
+        diff = drift(layout, fixture, fetch_source)
         if diff:
             failed = True
             sys.stdout.writelines(diff)

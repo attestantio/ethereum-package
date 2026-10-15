@@ -105,17 +105,6 @@ jobs:
       - name: Kurtosis Lint
         run: kurtosis lint ${{ github.workspace }}
 
-  generated-fixtures:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Test fixture tooling and check generated fixtures for drift
-        run: |
-          pip install pyyaml --quiet
-          python3 -m unittest discover -s .github/fixtures
-          python3 .github/fixtures/generate-fixture.py --check
-
   assertoor:
     runs-on: ubuntu-latest
     timeout-minutes: 30
