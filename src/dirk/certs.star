@@ -1,6 +1,6 @@
 constants = import_module("../package_io/constants.star")
+dirk_clusters = import_module("../package_io/dirk_clusters.star")
 
-CERT_VALIDITY_DAYS = 1825
 ETHDO_CLIENT_NAME = "ethdo-client"
 
 
@@ -15,7 +15,7 @@ def generate_certs(plan, dirk_service_names, vouch_client_name, cluster_id):
 
     cluster_id is "" for the single default cluster.
     """
-    prefix = cluster_prefix(cluster_id)
+    prefix = dirk_clusters.cluster_prefix(cluster_id)
     store_specs = [
         StoreSpec(
             src="/certs/servers/{0}/".format(name),
@@ -47,17 +47,13 @@ def generate_certs(plan, dirk_service_names, vouch_client_name, cluster_id):
     )
 
 
-def cluster_prefix(cluster_id):
-    return "dirk-{0}".format(cluster_id) if cluster_id != "" else "dirk"
-
-
 def _build_cert_script(dirk_service_names, vouch_client_name):
     lines = [
         "set -e",
         "mkdir -p /certs/ca /certs/vouch /certs/ethdo",
         "openssl genrsa -out /certs/ca/ca.key 4096",
         'openssl req -x509 -new -nodes -key /certs/ca/ca.key -sha256 -days {0} -out /certs/ca/ca.crt -subj "/CN=Dirk CA"'.format(
-            CERT_VALIDITY_DAYS
+            constants.CERT_VALIDITY_DAYS
         ),
     ]
     for name in dirk_service_names:
@@ -91,6 +87,6 @@ def _cert_commands(directory, file_name, identity):
             base, identity
         ),
         "openssl x509 -req -in {0}.csr -CA /certs/ca/ca.crt -CAkey /certs/ca/ca.key -CAcreateserial -out {0}.crt -days {1} -sha256 -extfile {0}.ext".format(
-            base, CERT_VALIDITY_DAYS
+            base, constants.CERT_VALIDITY_DAYS
         ),
     ]
