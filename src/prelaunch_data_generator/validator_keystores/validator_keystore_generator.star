@@ -11,7 +11,7 @@ PRYSM_PASSWORD_FILEPATH_ON_GENERATOR = "/tmp/prysm-password.txt"
 
 KEYSTORES_GENERATION_TOOL_NAME = "/app/eth2-val-tools"
 
-ETH_VAL_TOOLS_IMAGE = "protolambda/eth2-val-tools:latest"
+ETH_VAL_TOOLS_IMAGE = "protolambda/eth2-val-tools:0.2.2@sha256:46147228f291266148a6a21a2b9541367ad5f70e619d79cd5393459baf539f58"
 
 SUCCESSFUL_EXEC_CMD_EXIT_CODE = 0
 
@@ -112,7 +112,7 @@ def generate_validator_keystores(plan, mnemonic, participants, docker_cache_para
 
     for idx, participant in enumerate(participants):
         output_dirpath = NODE_KEYSTORES_OUTPUT_DIRPATH_FORMAT_STR.format(idx, "")
-        if participant.validator_count == 0:
+        if not shared_utils.has_mnemonic_keys(participant):
             all_output_dirpaths.append(output_dirpath)
             continue
 
@@ -152,7 +152,7 @@ def generate_validator_keystores(plan, mnemonic, participants, docker_cache_para
     keystore_files = []
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
-        if participant.validator_count == 0:
+        if not shared_utils.has_mnemonic_keys(participant):
             keystore_files.append(None)
             continue
 
@@ -243,7 +243,7 @@ def generate_validator_keystores_in_parallel(
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
         output_dirpath = NODE_KEYSTORES_OUTPUT_DIRPATH_FORMAT_STR.format(idx, "")
-        if participant.validator_count == 0:
+        if not shared_utils.has_mnemonic_keys(participant):
             all_generation_commands.append(None)
             all_output_dirpaths.append(None)
             finished_files_to_verify.append(None)
@@ -315,7 +315,7 @@ def generate_validator_keystores_in_parallel(
     running_total_validator_count = 0
     for idx, participant in enumerate(participants):
         output_dirpath = all_output_dirpaths[idx]
-        if participant.validator_count == 0:
+        if not shared_utils.has_mnemonic_keys(participant):
             keystore_files.append(None)
             continue
         service_name = service_names[idx]

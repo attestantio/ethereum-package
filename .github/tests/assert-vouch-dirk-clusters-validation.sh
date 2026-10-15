@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck disable=SC2034 # fixture and enclave_prefix are read by lib-invalid-inputs.sh
+fixture=.github/tests/vouch-dirk-clusters.yaml
+# shellcheck disable=SC2034
+enclave_prefix=vouch-dirk-clusters-validation
+source .github/tests/lib-invalid-inputs.sh
+
+run_invalid duplicate "already defined" $'dirk_cluster_id: b|||dirk_cluster_id: a'
+run_invalid implicit "Every active Vouch needs a dirk_cluster_id" $'dirk_cluster_id: b|||dirk_cluster_id:'
+run_invalid invalid-id "must be one lowercase alphanumeric" $'dirk_cluster_id: b|||dirk_cluster_id: aa'
+run_invalid missing "references missing" $'validator_count: 0\n    dirk_cluster_id: a|||validator_count: 0\n    dirk_cluster_id: z'
+run_invalid threshold "must be between 1" $'vouch_multiinstance_attester_delay: 250ms|||dirk_signing_threshold: 4\n    vouch_multiinstance_attester_delay: 250ms'
+run_invalid passive-dirk "apply to the active Vouch that creates the cluster" $'vouch_multiinstance_attester_delay: 4s|||dirk_peer_count: 5\n    vouch_multiinstance_attester_delay: 4s'
+run_invalid shared-no-multiinstance "so both need vouch_multiinstance_style: static-delay" $'\n    vouch_multiinstance_style: static-delay\n    vouch_multiinstance_attester_delay: 4s\n    vouch_multiinstance_proposer_delay: 2s|||'

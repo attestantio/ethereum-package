@@ -546,3 +546,14 @@ def add_services_with_force_restart(
         )
 
     return services
+
+
+def has_mnemonic_keys(participant):
+    """True if the participant's validators come from the mnemonic.
+
+    Vouch validators come from the Dirk DKG instead.
+    """
+    return (
+        participant.validator_count > 0
+        and participant.vc_type != constants.VC_TYPE.vouch
+    )
