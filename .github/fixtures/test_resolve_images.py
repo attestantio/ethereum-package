@@ -1,5 +1,7 @@
 """Offline tests for resolve-images.py. Run: python3 -m unittest discover -s .github/fixtures"""
 
+import contextlib
+import io
 import unittest
 
 from _loader import load
@@ -19,8 +21,22 @@ class ResolveTest(unittest.TestCase):
             {"name": "master-1111111", "digest": "sha256:b"},
             {"name": "master-9e80021", "digest": "sha256:a"},
         ]
-        self.assertEqual(res.commit_tag("ethpandaops/geth", "master", "sha256:a", tags), ("master-9e80021", "9e80021"))
-        self.assertEqual(res.commit_tag("ethpandaops/geth", "master", "sha256:c", tags), (None, None))
+        self.assertEqual(res.commit_tag("master", "sha256:a", tags), ("master-9e80021", "9e80021"))
+        self.assertEqual(res.commit_tag("master", "sha256:c", tags), (None, None))
+
+
+    def test_registry_detection(self):
+        self.assertTrue(res.on_docker_hub("ethpandaops/geth"))
+        self.assertFalse(res.on_docker_hub("ghcr.io/paradigmxyz/reth"))
+
+    def test_one_failing_client_does_not_stop_the_run(self):
+        def resolve(name):
+            if name == "bad":
+                raise RuntimeError("registry down")
+            return f"{name}: ok"
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertTrue(res.resolve_all(["bad", "good"], resolve))
+        self.assertIn("good: ok", out.getvalue())
 
 
 if __name__ == "__main__":

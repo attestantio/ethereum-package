@@ -90,7 +90,9 @@ def fake_fetch(source):
 
 class GenerateTest(unittest.TestCase):
     def setUp(self):
-        self.dir = pathlib.Path(tempfile.mkdtemp())
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
 
     def layout(self, mode="next-fork"):
         path = self.dir / "layout.yaml"
@@ -149,6 +151,12 @@ class GenerateTest(unittest.TestCase):
         self.assertNotEqual(gen.drift(layout, fixture, fake_fetch), [])
 
 
+    def test_unknown_blob_step_fails(self):
+        genesis = {**GENESIS, "config": {**GENESIS["config"], "blobSchedule": {**GENESIS["config"]["blobSchedule"], "osaka": {}}}}
+        with self.assertRaises(SystemExit) as raised:
+            gen.next_fork_params(yaml.load(CONFIG, Loader=yaml.BaseLoader), genesis)
+        self.assertIn("osaka", str(raised.exception.code))
+
     def test_check_exits_nonzero_on_drift(self):
         layouts = self.dir / "layouts"
         tests = self.dir / "tests"
@@ -156,6 +164,8 @@ class GenerateTest(unittest.TestCase):
         tests.mkdir()
         (layouts / "f.yaml").write_text(LAYOUT.format(mode="next-fork"))
         (tests / "f.yaml").write_text("hand edited\n")
+        self.addCleanup(setattr, gen, "LAYOUTS", gen.LAYOUTS)
+        self.addCleanup(setattr, gen, "TESTS", gen.TESTS)
         gen.LAYOUTS, gen.TESTS = layouts, tests
         with self.assertRaises(SystemExit) as raised, contextlib.redirect_stdout(io.StringIO()):
             gen.main(["--check"], fake_fetch)

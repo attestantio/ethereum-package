@@ -75,7 +75,7 @@ def next_fork_params(config, genesis):
         sys.exit("source schedules no fork after genesis")
     next_fork = min(scheduled)
     slot_ms = int(config["SLOT_DURATION_MS"])
-    epoch_seconds = slot_ms // 1000 * SLOTS_PER_EPOCH[config["PRESET_BASE"]]
+    epoch_ms = slot_ms * SLOTS_PER_EPOCH[config["PRESET_BASE"]]
     genesis_time = int(genesis["timestamp"], 0) if isinstance(genesis["timestamp"], str) else genesis["timestamp"]
 
     params = {
@@ -83,12 +83,14 @@ def next_fork_params(config, genesis):
         "preset": config["PRESET_BASE"],
         "network_id": str(config["DEPOSIT_CHAIN_ID"]),
         "deposit_contract_address": config["DEPOSIT_CONTRACT_ADDRESS"],
-        "seconds_per_slot": slot_ms // 1000,
         "slot_duration_ms": slot_ms,
         "genesis_delay": GENESIS_DELAY,
         "genesis_gaslimit": int(genesis["gasLimit"], 16),
         "genesis_fork_version": config["GENESIS_FORK_VERSION"],
     }
+    # seconds_per_slot only holds whole seconds; the package derives it otherwise.
+    if slot_ms % 1000 == 0:
+        params["seconds_per_slot"] = slot_ms // 1000
     if "MIN_BUILDER_WITHDRAWABILITY_DELAY" in config:
         params["min_builder_withdrawability_delay"] = int(config["MIN_BUILDER_WITHDRAWABILITY_DELAY"])
     for fork in FORKS:
@@ -98,19 +100,22 @@ def next_fork_params(config, genesis):
     # The EL genesis lists every blob step with its target and fraction. The CL
     # config's BLOB_SCHEDULE collapses steps that share an epoch, so it is not used.
     schedule = genesis["config"]["blobSchedule"]
+    # cancun predates Electra and keeps the package default.
+    known = {"cancun", "prague"} | {f"bpo{n}" for n in range(1, BPO_SLOTS + 1)}
+    unknown = sorted(set(schedule) - known)
+    if unknown:
+        sys.exit(f"blobSchedule has steps the generator does not map: {', '.join(unknown)}")
     prague = schedule["prague"]
     params["max_blobs_per_block_electra"] = prague["max"]
     params["target_blobs_per_block_electra"] = prague["target"]
     params["base_fee_update_fraction_electra"] = prague["baseFeeUpdateFraction"]
-    if f"bpo{BPO_SLOTS + 1}" in schedule:
-        sys.exit("blobSchedule has more BPO steps than the package supports")
     for n in range(1, BPO_SLOTS + 1):
         step = schedule.get(f"bpo{n}")
         if step is None:
             params[f"bpo_{n}_epoch"] = FAR_FUTURE
             continue
         activation = genesis["config"][f"bpo{n}Time"]
-        epoch = 0 if activation <= genesis_time else (activation - genesis_time) // epoch_seconds
+        epoch = 0 if activation <= genesis_time else (activation - genesis_time) * 1000 // epoch_ms
         params[f"bpo_{n}_epoch"] = rebase(epoch, next_fork)
         params[f"bpo_{n}_max_blobs"] = step["max"]
         params[f"bpo_{n}_target_blobs"] = step["target"]
@@ -127,7 +132,8 @@ def next_fork_params(config, genesis):
 
 
 def mainnet_params():
-    # Package defaults today, written out so a default change upstream shows as drift.
+    # Written out, though they equal today's defaults, so the fixture keeps them
+    # if the package defaults move to a newer fork.
     params = {"network": "kurtosis", "preset": "mainnet"}
     for fork in FORKS:
         params[f"{fork}_fork_epoch"] = 0 if fork in MAINNET_LIVE_FORKS else FAR_FUTURE
