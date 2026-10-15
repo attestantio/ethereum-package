@@ -476,8 +476,9 @@ participants:
 
   # VC (Validator Client) Specific flags
     # The type of validator client that should be used
-    # Valid values are nimbus, lighthouse, lodestar, teku, prysm and vero
+    # Valid values are nimbus, lighthouse, lodestar, teku, prysm, vero and vouch
     # ( The prysm validator only works with a prysm CL client )
+    # vouch runs Vouch signing through a Dirk cluster; see the Vouch and Dirk fields below
     # Defaults to matching the chosen CL client (cl_type)
     vc_type: ""
 
@@ -489,6 +490,8 @@ participants:
     # - prysm: ethpandaops/prysm-validator:develop
     # - teku: ethpandaops/teku:master
     # - vero: ghcr.io/serenita-org/vero:latest
+    # - vouch: attestant/vouch:1.13.1 (pinned by digest; mainnet preset only,
+    #   since Vouch releases before 1.14 decode SSZ with mainnet sizes)
     vc_image: ""
 
     # Path to a local VC binary to inject into the container (Docker only)
@@ -569,7 +572,40 @@ participants:
     # Count of the number of validators you want to run for a given participant
     # Default to null, which means that the number of validators will be using the
     # network parameter num_validator_keys_per_node
+    # For vc_type: vouch, these validators are created by a Dirk DKG ceremony
+    # instead of the mnemonic, and validator_count: 0 makes the Vouch passive
     validator_count: null
+
+    # Vouch and Dirk fields (vc_type: vouch only)
+    # An active Vouch (validator_count > 0) creates a Dirk cluster holding its
+    # validators. A passive Vouch (validator_count: 0) joins an existing cluster.
+    # Dirk image for the cluster this participant creates
+    # Defaults to attestant/dirk:1.2.1 (pinned by digest)
+    dirk_image: ""
+    # Number of Dirk peers in the cluster. Defaults to 3
+    dirk_peer_count: 3
+    # Signatures needed out of dirk_peer_count. Defaults to 2
+    dirk_signing_threshold: 2
+    # One lowercase letter or digit naming the cluster. Required when more than one
+    # active Vouch exists, and on every passive Vouch. Dirk services are named
+    # dirk-<id>-<n>, or dirk-<n> for the single unnamed cluster. Defaults to null
+    dirk_cluster_id: null
+    # Account range a passive Vouch manages within its cluster. Required, and only
+    # allowed, on a passive Vouch. Defaults to null
+    vouch_account_start: null
+    vouch_account_count: null
+    # Multi-instance style: "" (off) or "static-delay". Instances may share an
+    # account range only when both use static-delay. Defaults to ""
+    vouch_multiinstance_style: ""
+    # Static-delay attester and proposer delays. Defaults to "0s"
+    vouch_multiinstance_attester_delay: "0s"
+    vouch_multiinstance_proposer_delay: "0s"
+    # By default the package sets strategies that use every beacon node (majority
+    # attestation data, best proposals, multinode submitter). Set to true to run
+    # with Vouch's own default strategies instead. Defaults to false
+    vouch_default_strategies: false
+    # Strategies YAML that replaces the package's strategies. Defaults to ""
+    vouch_strategies_yaml: ""
 
     # Whether to use a remote signer instead of the vc directly handling keys
     # Note Lighthouse VC does not support this flag
@@ -906,6 +942,18 @@ network_params:
   # Defaults to 18446744073709551615
   gloas_fork_epoch: 18446744073709551615
 
+  # Fork versions, for matching a public devnet's settings
+  # Defaults to the package's private versions 0x10000038 (genesis) to 0x90000038 (heze)
+  genesis_fork_version: "0x10000038"
+  altair_fork_version: "0x20000038"
+  bellatrix_fork_version: "0x30000038"
+  capella_fork_version: "0x40000038"
+  deneb_fork_version: "0x50000038"
+  electra_fork_version: "0x60000038"
+  fulu_fork_version: "0x70000038"
+  gloas_fork_version: "0x80000038"
+  heze_fork_version: "0x90000038"
+
   # Network sync base url for syncing public networks from a custom snapshot (mostly useful for shadowforks)
   # Defaults to "https://snapshots.ethpandaops.io/"
   # If you have a local snapshot, you can set this to the local url:
@@ -930,6 +978,14 @@ network_params:
   # Minimum number of subnets an honest node custodies and serves samples from
   # Defaults to 4
   custody_requirement: 4
+
+  # Number of data column sidecar subnets
+  # Defaults to 128
+  data_column_sidecar_subnet_count: 128
+
+  # Minimum custody groups for a node with validators attached
+  # Defaults to 8
+  validator_custody_requirement: 8
 
   # Maximum number of blobs per block for Electra fork (default 9)
   max_blobs_per_block_electra: 9
@@ -1378,8 +1434,19 @@ tempo_params:
   min_mem: 128
   max_mem: 2048
   # Tempo docker image to use
-  # Defaults to the latest image
-  image: "grafana/tempo:latest"
+  # Defaults to grafana/tempo:2.7.2 (pinned by digest)
+  image: "grafana/tempo:2.7.2"
+
+# Serve Tempo's OTLP receivers over mTLS with certificates from a dedicated CA.
+# Vouch traces with a client certificate; Dirk tracing is turned off.
+# Requires tempo in additional_services. Defaults to false
+tempo_mtls_enabled: false
+
+# After first finality, check the Vouch/Dirk certificate setup: exact DNS SAN on
+# every Dirk peer, Vouch certificate validity gauges, successful signing and
+# Tempo traces. Requires a Vouch participant and digest-pinned vc_image and
+# dirk_image on every Vouch participant. Defaults to false
+certmanager_test_enabled: false
 
 # Configuration place for the assertoor testing tool - https://github.com/ethpandaops/assertoor
 assertoor_params:
