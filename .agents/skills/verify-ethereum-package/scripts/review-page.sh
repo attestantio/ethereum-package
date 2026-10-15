@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Build <evidence-dir>/index.html from SETUP-before.md, SETUP-after.md and REPORT.md, then open it.
 # Usage: review-page.sh <evidence-dir> [--no-open]
-# Sign-off status comes from <evidence-dir>/signoff.md. Needs uv (or python3 with `markdown`).
+# Sign-off status comes from <evidence-dir>/signoff.md. Needs uv.
 set -euo pipefail
 if [[ $# -lt 1 ]]; then
   echo "usage: $0 <evidence-dir> [--no-open]" >&2
-  exit 64
+  exit 2
 fi
 dir="$(cd "$1" && pwd)"
 
