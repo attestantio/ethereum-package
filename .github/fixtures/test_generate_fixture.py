@@ -1,0 +1,131 @@
+"""Offline tests for generate-fixture.py. Run: python3 -m unittest discover -s .github/fixtures"""
+
+import importlib.util
+import pathlib
+import tempfile
+import unittest
+
+import yaml
+
+HERE = pathlib.Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location("generate_fixture", HERE / "generate-fixture.py")
+gen = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gen)
+
+FAR = gen.FAR_FUTURE
+CONFIG = """
+PRESET_BASE: 'mainnet'
+GENESIS_FORK_VERSION: 0x10733183
+ALTAIR_FORK_VERSION: 0x20733183
+ALTAIR_FORK_EPOCH: 0
+BELLATRIX_FORK_VERSION: 0x30733183
+BELLATRIX_FORK_EPOCH: 0
+CAPELLA_FORK_VERSION: 0x40733183
+CAPELLA_FORK_EPOCH: 0
+DENEB_FORK_VERSION: 0x50733183
+DENEB_FORK_EPOCH: 0
+ELECTRA_FORK_VERSION: 0x60733183
+ELECTRA_FORK_EPOCH: 0
+FULU_FORK_VERSION: 0x70733183
+FULU_FORK_EPOCH: 0
+GLOAS_FORK_VERSION: 0x80733183
+GLOAS_FORK_EPOCH: 1536
+HEZE_FORK_VERSION: 0x90000000
+HEZE_FORK_EPOCH: 18446744073709551615
+SLOT_DURATION_MS: 12000
+MIN_BUILDER_WITHDRAWABILITY_DELAY: 64
+DEPOSIT_CHAIN_ID: 7091047534
+DEPOSIT_CONTRACT_ADDRESS: 0x00000000219ab540356cBB839Cbe05303d7705Fa
+MAX_BLOBS_PER_BLOCK_ELECTRA: 9
+DATA_COLUMN_SIDECAR_SUBNET_COUNT: 128
+SAMPLES_PER_SLOT: 8
+CUSTODY_REQUIREMENT: 4
+VALIDATOR_CUSTODY_REQUIREMENT: 8
+MIN_EPOCHS_FOR_DATA_COLUMN_SIDECARS_REQUESTS: 4096
+BLOB_SCHEDULE:
+  - EPOCH: 0
+    MAX_BLOBS_PER_BLOCK: 21
+  - EPOCH: 1600
+    MAX_BLOBS_PER_BLOCK: 30
+GAS_LIMIT_SCHEDULE:
+  - EPOCH: 1566
+    GAS_LIMIT: 200000000
+"""
+
+LAYOUT = """# Comment kept in the fixture.
+participants:
+  - el_type: geth
+    cl_type: lighthouse
+
+fixture_source:
+  mode: {mode}
+  repo: ethpandaops/glamsterdam-devnets
+  commit: abc123
+  devnet: devnet-8
+  network_params:
+    seconds_per_slot: 6
+
+additional_services: []
+"""
+
+
+def fake_fetch(source):
+    return yaml.load(CONFIG, Loader=yaml.BaseLoader), {"gasLimit": "0x3938700"}
+
+
+class GenerateTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp())
+
+    def layout(self, mode="next-fork"):
+        path = self.dir / "layout.yaml"
+        path.write_text(LAYOUT.format(mode=mode))
+        return path
+
+    def params(self, mode="next-fork"):
+        return yaml.safe_load(gen.generate(self.layout(mode), fake_fetch))["network_params"]
+
+    def test_next_fork_moves_to_epoch_2_and_keeps_offsets(self):
+        p = self.params()
+        self.assertEqual(p["fulu_fork_epoch"], 0)
+        self.assertEqual(p["gloas_fork_epoch"], 2)
+        self.assertEqual(p["heze_fork_epoch"], FAR)
+        self.assertEqual(p["gas_limit_schedule"], [{"epoch": 32, "gas_limit": 200000000}])
+        self.assertEqual(p["bpo_2_epoch"], 66)
+
+    def test_next_fork_copies_identity_and_derives_blob_targets(self):
+        p = self.params()
+        self.assertEqual(p["network_id"], "7091047534")
+        self.assertEqual(p["gloas_fork_version"], "0x80733183")
+        self.assertEqual(p["genesis_gaslimit"], 60000000)
+        self.assertEqual((p["bpo_1_epoch"], p["bpo_1_max_blobs"], p["bpo_1_target_blobs"]), (0, 21, 14))
+        self.assertEqual(p["bpo_3_epoch"], FAR)
+        self.assertEqual(p["target_blobs_per_block_electra"], 6)
+        self.assertEqual(p["genesis_delay"], 20)
+
+    def test_overrides_apply_last(self):
+        self.assertEqual(self.params()["seconds_per_slot"], 6)
+
+    def test_mainnet_mode_starts_on_fulu(self):
+        p = self.params("mainnet")
+        self.assertEqual(p["fulu_fork_epoch"], 0)
+        self.assertEqual(p["gloas_fork_epoch"], FAR)
+        self.assertNotIn("network_id", p)
+
+    def test_layout_text_is_kept_without_fixture_source(self):
+        text = gen.generate(self.layout(), fake_fetch)
+        self.assertIn("# Comment kept in the fixture.", text)
+        self.assertIn("additional_services: []", text)
+        self.assertNotIn("fixture_source", text)
+
+    def test_drift_fails_on_hand_edit(self):
+        layout = self.layout()
+        fixture = self.dir / "fixture.yaml"
+        fixture.write_text(gen.generate(layout, fake_fetch))
+        self.assertEqual(gen.drift(layout, fixture, fake_fetch), [])
+        fixture.write_text(fixture.read_text().replace("gloas_fork_epoch: 2", "gloas_fork_epoch: 5"))
+        self.assertNotEqual(gen.drift(layout, fixture, fake_fetch), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
