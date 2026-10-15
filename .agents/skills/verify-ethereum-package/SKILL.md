@@ -57,4 +57,4 @@ Remove only what this run created, by the full UUID in `resources.md`: `kurtosis
 
 ## Helpers
 
-Every script prints its usage and exits 2 on wrong arguments. `lib.sh` holds shared service discovery and is sourced, not run.
+Every script prints its usage and exits 2 on wrong arguments or an unknown enclave. `lib.sh` holds shared service discovery and is sourced, not run.
