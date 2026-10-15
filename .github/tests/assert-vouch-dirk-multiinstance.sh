@@ -16,3 +16,16 @@ test "$(grep -c "'DistributedWallet/" <<<"$config")" -eq 1
 # Static-delay starts inactive until arbitration promotes the instance.
 logs=$(kurtosis service logs -a "$enclave" "$service")
 grep -q 'attester_active":false' <<<"$logs"
+
+# Vouch holds half the stake, so finality proves the instance became active and signs.
+beacon_url="http://$(kurtosis port print "$enclave" cl-1-lighthouse-geth http --format ip,number | tr ' ' ':')"
+for _ in $(seq 120); do
+  # A failed request counts as not yet finalized.
+  finalized=$(curl -fsS "$beacon_url/eth/v1/beacon/states/head/finality_checkpoints" | jq -r '.data.finalized.epoch' || echo 0)
+  if (( finalized >= 1 )); then
+    exit 0
+  fi
+  sleep 10
+done
+echo "chain did not finalize within 20 minutes" >&2
+exit 1
