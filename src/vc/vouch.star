@@ -23,7 +23,7 @@ VOUCH_STRATEGIES_YAML = """strategies:
   attestationdata:
     style: 'majority'
     majority:
-      threshold: 2
+      threshold: {threshold}
     timeout: '2s'
   beaconblockheader:
     style: 'first'
@@ -61,8 +61,6 @@ def get_config(
     extra_files_artifacts,
     vc_binary_artifact=None,
     tempo_otlp_grpc_url=None,
-    vouch_account_start=None,
-    vouch_account_count=None,
     tempo_client_tls=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
@@ -94,20 +92,8 @@ def get_config(
         else:
             tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
 
-    if vouch_account_start != None:
-        accounts_yaml = (
-            "\n".join(
-                [
-                    "      - '{0}/{1}'".format(constants.DIRK_WALLET_NAME, account)
-                    for account in range(
-                        vouch_account_start, vouch_account_start + vouch_account_count
-                    )
-                ]
-            )
-            + "\n"
-        )
-    else:
-        accounts_yaml = "      - '{0}'\n".format(constants.DIRK_WALLET_NAME)
+    # Each cluster's Dirk wallet holds only that cluster's accounts.
+    accounts_yaml = "      - '{0}'\n".format(constants.DIRK_WALLET_NAME)
 
     if not participant.vouch_package_strategies:
         strategies_yaml = ""
@@ -116,7 +102,10 @@ def get_config(
         if not strategies_yaml.endswith("\n"):
             strategies_yaml += "\n"
     else:
-        strategies_yaml = VOUCH_STRATEGIES_YAML
+        # Vouch refuses a threshold above its beacon node count.
+        strategies_yaml = VOUCH_STRATEGIES_YAML.format(
+            threshold=min(2, len(beacon_http_urls))
+        )
 
     multiinstance_yaml = ""
     if participant.vouch_multiinstance_style != "":
@@ -164,8 +153,10 @@ graffiti:
         tracing=tracing_yaml,
     )
 
-    # Create the config file artifact using render_templates
-    config_template_and_data = shared_utils.new_template_and_data(vouch_config, {})
+    # Pass the config as data so user YAML containing "{{" is not parsed as a template.
+    config_template_and_data = shared_utils.new_template_and_data(
+        "{{ .Config }}", {"Config": vouch_config}
+    )
     config_files_artifact_name = plan.render_templates(
         {VOUCH_CONFIG_FILENAME: config_template_and_data},
         "vouch-config-{0}".format(vc_index),
