@@ -4,9 +4,10 @@
 set -uo pipefail
 if [[ $# -ne 2 ]]; then
   echo "usage: $0 <enclave> <evidence-dir>" >&2
-  exit 64
+  exit 2
 fi
 enclave="$1"
+source "$(dirname "$0")/lib.sh"
 dir="$2"
 mkdir -p "$dir"
 out="$dir/SETUP-after.md"
@@ -28,17 +29,17 @@ rpc() { curl -fsS -m 5 -X POST -H 'Content-Type: application/json' -d "{\"jsonrp
   echo
   echo "## Reported versions"
   echo
-  for cl in $(grep -oE '\bcl-[0-9]+-[a-z0-9-]+' <<<"$inspect" | sort -u); do
-    echo "- $cl: $(curl -fsS -m 5 "$(kurtosis port print "$enclave" "$cl" http 2>/dev/null)/eth/v1/node/version" | jq -r .data.version)"
+  for cl in $(services_of cl "$inspect"); do
+    echo "- $cl: $(curl -fsS -m 5 "$(port_url "$enclave" "$cl" http)/eth/v1/node/version" | jq -r .data.version)"
   done
-  for el in $(grep -oE '\bel-[0-9]+-[a-z0-9-]+' <<<"$inspect" | sort -u); do
-    echo "- $el: $(rpc "$(kurtosis port print "$enclave" "$el" rpc 2>/dev/null)" web3_clientVersion)"
+  for el in $(services_of el "$inspect"); do
+    echo "- $el: $(rpc "$(port_url "$enclave" "$el" rpc)" web3_clientVersion)"
   done
   echo
   echo "## Served network"
   echo
-  cl1="$(grep -oE '\bcl-1-[a-z0-9-]+' <<<"$inspect" | head -1)"
-  b="$(kurtosis port print "$enclave" "$cl1" http 2>/dev/null)"
+  cl1="$(services_of cl "$inspect" | head -1)"
+  b="$(port_url "$enclave" "$cl1" http)"
   curl -fsS -m 5 "$b/eth/v1/config/spec" | jq -r '.data | "- Preset \(.PRESET_BASE), config \(.CONFIG_NAME), deposit chain ID \(.DEPOSIT_CHAIN_ID), \(.SECONDS_PER_SLOT)s slots, \(.SLOTS_PER_EPOCH) slots per epoch\n- Fork epochs: \([to_entries[] | select(.key|endswith("_FORK_EPOCH")) | "\(.key|sub("_FORK_EPOCH";""))=\(.value)"] | join(", "))"'
   g="$(curl -fsS -m 5 "$b/eth/v1/beacon/genesis" | jq -r .data.genesis_time)"
   echo "- Genesis: $(date -u -r "$g" +%FT%TZ 2>/dev/null || date -u -d "@$g" +%FT%TZ)"

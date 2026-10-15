@@ -6,20 +6,20 @@ This directory is the maintained source for verifying the package's fixtures. Re
 
 - Docker and the Kurtosis engine are running, and `kurtosis enclave ls` is saved to the run directory.
 - The checkout is the one under test; `setup-before.sh` records its commit and uncommitted changes.
-- The fixtures use the mainnet preset with 6s slots, because Vouch releases before 1.14 decode SSZ with mainnet sizes only. An epoch takes 3.2 minutes; the first finalized epoch appears after about 4 to 5 epochs.
-- **Apple Silicon.** The official `attestant/vouch` and `attestant/dirk` images are amd64 only, and Vouch under emulation trips its deadlock detector on the multi-instance and cluster fixtures. Build arm64 images from the pinned release tags (`docker build -t local/vouch:<version>-<commit> .` in a Vouch checkout at the tag, the same for Dirk), copy the fixture to `$run_dir/args.yaml`, replace the two image refs with the local tags, and launch the copy. Record the substitution in SETUP-before. The certmanager fixture accepts only digest refs; see its file.
+- Vouch fixtures use the mainnet preset (why: `docs/learnings/vouch-dirk.md`). With 6s slots an epoch takes 3.2 minutes; with 12s, 6.4.
+- **amd64-only images.** `resolve-images.py` prints each image's platforms. If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build one from the same release tag (`docker build -t local/<image>:<version>-<commit> .` in a checkout at the tag), copy the fixture to `$run_dir/args.yaml`, replace the refs with the local tags, and launch the copy. Record the substitution in SETUP-before. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
 - Vouch 1.13.1 logs many `job already exists` errors at the first epoch boundary. It is a known Vouch scheduler bug, fixed after that release; note it in the report, not as a fixture failure.
 
 ## Driving conventions
 
 - Launch from the repo root with `kurtosis run . --enclave <name> --args-file .github/tests/<fixture>.yaml`.
 - One enclave at a time. Clean it up before launching the next.
-- Commands are literal; service names follow `<role>-<n>-<client>-<client>` and come from the live enclave.
+- Service names come from the live enclave: `el-<n>-<el>-<cl>`, `cl-<n>-<cl>-<el>`, `vc-<n>-<el>-<cl>-<vc>`, `dirk-<cluster>-<n>` (or `dirk-<n>`), `tempo`.
 
 ## Proof and skip reporting
 
-- Proof is the fixture's assertion script exiting 0, plus `devnet-health.sh` and both setup records.
-- A fixture whose assertion script cannot run is blocked, with the reason, not passed.
+- Proof is every step of the fixture's recipe passing, plus `devnet-health.sh` and both setup records.
+- A step whose precondition never happened is blocked, with the reason, not passed.
 - Every result names the fixture, the commit and the run directory.
 
 ## Generated fixtures
@@ -28,7 +28,7 @@ A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the la
 
 ## Fixture entry contract
 
-Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis` (`Preconditions:` then labeled bullets pairing action, command and observable result), and `Gotchas`.
+Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section opens with `Preconditions:` and `Ready when:`, then one bullet per step naming the command, what passes and what fails.
 
 ## Fixtures
 
@@ -37,4 +37,4 @@ Each file starts with an H1 and one paragraph on what the fixture proves, then f
 - [Vouch/Dirk clusters](./vouch-dirk-clusters.md): two Dirk clusters, an active/passive pair on cluster A, plus input validation.
 - [Tempo plain](./tempo-plain.md): Vouch and Dirk traces in plain Tempo.
 - [Tempo mTLS](./tempo-mtls.md): Vouch traces in Tempo over mTLS.
-- [Vouch/Dirk certmanager](./vouch-dirk-certmanager.md): mainnet preset, two 3-of-5 Dirk clusters, certificate identity and validity metrics.
+- [Vouch/Dirk certmanager](./vouch-dirk-certmanager.md): two 3-of-5 Dirk clusters, certificate identity and validity metrics.
