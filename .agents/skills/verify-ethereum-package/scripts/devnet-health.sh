@@ -5,8 +5,9 @@
 #
 # Usage: devnet-health.sh <enclave>
 # Exit 0 HEALTHY: every client is on one chain, close to the wall clock, and finalizing.
-# Exit 1 UNHEALTHY: the majority chain is stalled, not justifying or not finalizing.
-# Exit 2 DIVERGED: the majority chain is healthy but some client is off it, stalled or not finalizing.
+# Exit 1 UNHEALTHY: no majority chain, or it is stalled, not justifying or not finalizing.
+# Exit 2: the check could not run (bad arguments, no enclave, no beacon API).
+# Exit 3 DIVERGED: the majority chain is healthy but some client is off it, stalled or not finalizing.
 set -uo pipefail
 if [[ $# -ne 1 || -z "$1" ]]; then
   echo "usage: $0 <enclave>" >&2
@@ -24,10 +25,10 @@ warn() { printf '  WARN %s\n' "$*"; }
 diverge() { printf '  DIVERGED %s: %s\n' "$1" "$2"; [[ " $DIVERGED " == *" $1 "* ]] || DIVERGED="$DIVERGED $1"; }
 get() { curl -fsS -m 10 "$1$2" 2>/dev/null; }
 
-inspect="$(kurtosis enclave inspect "$enclave" 2>/dev/null)" || { bad "enclave $enclave not found"; exit 1; }
+inspect="$(kurtosis enclave inspect "$enclave" 2>/dev/null)" || { echo "enclave $enclave not found" >&2; exit 2; }
 mapfile -t CLS < <(services_of cl "$inspect")
 mapfile -t ELS < <(services_of el "$inspect")
-(( ${#CLS[@]} )) || { bad "no beacon nodes in $enclave"; exit 1; }
+(( ${#CLS[@]} )) || { echo "no beacon nodes in $enclave" >&2; exit 2; }
 declare -A URL
 for cl in "${CLS[@]}"; do URL[$cl]="$(port_url "$enclave" "$cl" http)"; done
 
@@ -37,7 +38,7 @@ for cl in "${CLS[@]}"; do
 done
 sps="$(jq -r .data.SECONDS_PER_SLOT <<<"${spec:-}" 2>/dev/null)"
 spe="$(jq -r .data.SLOTS_PER_EPOCH <<<"${spec:-}" 2>/dev/null)"
-[[ -n "${genesis:-}" && -n "$sps" && -n "$spe" ]] || { bad "no beacon node returned spec and genesis"; exit 1; }
+[[ -n "${genesis:-}" && -n "$sps" && -n "$spe" ]] || { echo "no beacon node returned spec and genesis" >&2; exit 2; }
 wall=$(( ($(date +%s) - genesis) / sps ))
 note "enclave $enclave: ${#CLS[@]} beacon nodes, ${sps}s slots, $spe slots per epoch, wall-clock slot $wall"
 
@@ -58,14 +59,15 @@ for cl in "${CLS[@]}"; do
   done
 done
 
-# Block roots: the newest slot every answering client has passed, walking back
-# over empty slots. The majority root is the chain; others are off it.
-min_head=$wall
-for cl in "${CLS[@]}"; do [[ -n "${HEAD[$cl]}" ]] && (( ${HEAD[$cl]} < min_head )) && min_head=${HEAD[$cl]}; done
+# Block roots near the newest head, walking back over empty slots. A client
+# without a block there is behind or forked, and is judged as off the chain;
+# the slot never moves back to wait for it. A strict majority root is the chain.
+max_head=0
+for cl in "${CLS[@]}"; do [[ -n "${HEAD[$cl]}" ]] && (( ${HEAD[$cl]} > max_head )) && max_head=${HEAD[$cl]}; done
 declare -A ROOT CANON
 slot=0
 for back in $(seq 2 12); do
-  try=$(( min_head - back )); (( try < 1 )) && break
+  try=$(( max_head - back )); (( try < 1 )) && break
   have=0
   for cl in "${CLS[@]}"; do
     ROOT[$cl]="$(get "${URL[$cl]}" "/eth/v1/beacon/blocks/$try/root" | jq -r '.data.root // empty')"
@@ -76,9 +78,14 @@ done
 note ""
 note "block roots"
 if (( slot > 0 )); then
-  majority="$(for cl in "${CLS[@]}"; do [[ -n "${ROOT[$cl]}" ]] && echo "${ROOT[$cl]}"; done | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')"
+  read -r majority_count majority < <(for cl in "${CLS[@]}"; do [[ -n "${ROOT[$cl]}" ]] && echo "${ROOT[$cl]}"; done | sort | uniq -c | sort -rn | head -1)
+  # Without a strict majority there is no chain to compare against: a split.
+  if (( majority_count * 2 <= ${#CLS[@]} )); then
+    bad "no root at slot $slot is shared by a majority of ${#CLS[@]} clients: the chain is split"
+    majority=""
+  fi
   for cl in "${CLS[@]}"; do
-    if [[ "${ROOT[$cl]}" == "$majority" ]]; then CANON[$cl]=1; ok "$cl has root ${majority:0:18} at slot $slot"
+    if [[ -n "$majority" && "${ROOT[$cl]}" == "$majority" ]]; then CANON[$cl]=1; ok "$cl has root ${majority:0:18} at slot $slot"
     else CANON[$cl]=0; diverge "$cl" "root at slot $slot is ${ROOT[$cl]:-missing}, majority has ${majority:0:18}"; fi
   done
 else
@@ -108,6 +115,11 @@ note "majority chain"
 canon_heads=(); for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${HEAD[$cl]}" ]] && canon_heads+=("${HEAD[$cl]}"); done
 best_head=$(printf '%s\n' "${canon_heads[@]:-0}" | sort -n | tail -1)
 if (( wall - best_head > 8 )); then bad "majority head $best_head is $(( wall - best_head )) slots behind the wall clock"; else ok "majority head $best_head"; fi
+max_just=0
+for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${JUST[$cl]}" ]] && (( ${JUST[$cl]} > max_just )) && max_just=${JUST[$cl]}; done
+if (( head_epoch >= 4 )); then
+  (( head_epoch - max_just > 4 )) && bad "justification stuck at epoch $max_just while head is at epoch $head_epoch" || ok "justified epoch $max_just at head epoch $head_epoch"
+fi
 if (( head_epoch >= 5 )); then
   (( max_fin > 0 )) && ok "finalized epoch $max_fin at head epoch $head_epoch" || bad "nothing finalized by head epoch $head_epoch"
   (( head_epoch - max_fin > 6 )) && bad "finality $(( head_epoch - max_fin )) epochs behind head"
@@ -135,10 +147,8 @@ note ""
 note "execution layer heights"
 declare -a NUMS
 for el in "${ELS[@]}"; do
-  hx="$(curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-    --data '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
-    "$(port_url "$enclave" "$el" rpc)" | jq -r .result)"
-  if [[ -z "$hx" || "$hx" == null ]]; then diverge "$el" "no answer to eth_blockNumber"; continue; fi
+  hx="$(el_rpc "$(port_url "$enclave" "$el" rpc)" eth_blockNumber)"
+  if [[ -z "$hx" ]]; then diverge "$el" "no answer to eth_blockNumber"; continue; fi
   NUMS+=("$((hx))"); note "  $el = $((hx))"
 done
 if (( ${#NUMS[@]} > 1 )); then
@@ -148,5 +158,5 @@ fi
 
 note ""
 if (( FAIL )); then note "RESULT: UNHEALTHY"; exit 1; fi
-if [[ -n "$DIVERGED" ]]; then note "RESULT: DIVERGED:$DIVERGED"; exit 2; fi
+if [[ -n "$DIVERGED" ]]; then note "RESULT: DIVERGED:$DIVERGED"; exit 3; fi
 note "RESULT: HEALTHY"
