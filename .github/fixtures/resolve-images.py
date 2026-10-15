@@ -6,6 +6,8 @@
   resolve-images.py next-fork <repo> <commit> <devnet> [client ...]
       The image the devnet advertises, pinned to its commit tag and digest,
       unless the client's latest stable release contains that commit.
+      Advertised tags float: the pin is the build the tag points at today,
+      not at the devnet commit. Record the date with the pins.
 
 Output is one line per client: `<client>: <image ref>  # <why> <platforms>`.
 Needs docker (buildx imagetools) and access to GitHub and Docker Hub. Set
@@ -84,7 +86,7 @@ def inspect(ref):
     return manifest["digest"], platforms
 
 
-def commit_tag(image, branch, digest, tags):
+def commit_tag(branch, digest, tags):
     """The `<branch>-<sha>` tag published with the same digest, and its sha."""
     pattern = re.compile(rf"^{re.escape(branch)}-([0-9a-f]{{7,40}})$")
     for tag in tags:
@@ -92,6 +94,11 @@ def commit_tag(image, branch, digest, tags):
         if match and tag["digest"] == digest:
             return tag["name"], match.group(1)
     return None, None
+
+
+def on_docker_hub(image):
+    # Docker Hub repositories have no registry host before the first slash.
+    return "." not in image.split("/", 1)[0]
 
 
 def hub_tags(image, branch):
@@ -110,7 +117,9 @@ def release_line(name, why):
 def next_fork_line(name, advertised):
     image, branch = advertised.rsplit(":", 1)
     digest, platforms = inspect(advertised)
-    tag, sha = commit_tag(image, branch, digest, hub_tags(image, branch))
+    if not on_docker_hub(image):
+        return f"{name}: {advertised}@{digest}  # advertised; commit tag lookup needs Docker Hub {','.join(platforms)}"
+    tag, sha = commit_tag(branch, digest, hub_tags(image, branch))
     if tag is None:
         return f"{name}: {advertised}@{digest}  # advertised; no commit tag matches this digest {','.join(platforms)}"
     if name not in CLIENTS:
@@ -122,18 +131,30 @@ def next_fork_line(name, advertised):
     return f"{name}: {image}:{tag}@{digest}  # advertised {advertised} {','.join(platforms)}"
 
 
+def resolve_all(names, resolve):
+    """Print one line per client; a failing client prints an error and the run continues."""
+    failed = False
+    for name in names:
+        try:
+            print(resolve(name))
+        except Exception as error:  # one client's registry or API error must not hide the rest
+            failed = True
+            print(f"{name}: ERROR {error}")
+    return failed
+
+
 def main(argv):
     if len(argv) >= 1 and argv[0] == "mainnet":
-        for name in argv[1:] or CLIENTS:
-            print(release_line(name, "latest release"))
+        if resolve_all(argv[1:] or CLIENTS, lambda name: release_line(name, "latest release")):
+            sys.exit(1)
         return
     if len(argv) >= 4 and argv[0] == "next-fork":
         repo, commit, devnet = argv[1:4]
         url = f"https://raw.githubusercontent.com/{repo}/{commit}/{IMAGES_FILE.format(devnet=devnet)}"
         with urllib.request.urlopen(url, timeout=30) as response:
             advertised = yaml.safe_load(response)["default_ethereum_client_images"]
-        for name in argv[4:] or advertised:
-            print(next_fork_line(name, advertised[name]))
+        if resolve_all(argv[4:] or advertised, lambda name: next_fork_line(name, advertised[name])):
+            sys.exit(1)
         return
     print(__doc__, file=sys.stderr)
     sys.exit(2)
