@@ -2,8 +2,8 @@
 
 ## Config
 
-- A passive Vouch has `validator_count: 0` and needs `vouch_account_start` and `vouch_account_count` to know which accounts it manages.
-- In `src/vc/vouch.star`, template parameters `{2}` and `{4}` keep their trailing newline because the next template line follows with no separator. Only `{1}` may be stripped.
+- An active Vouch (`validator_count > 0`) creates a Dirk cluster and manages all of its accounts. A passive Vouch (`validator_count: 0`) joins a cluster and needs `vouch_account_start` and `vouch_account_count`; only passive instances may set them.
+- Vouch validators come from the Dirk DKG. The keystore generator and the genesis count both skip Vouch participants, so their mnemonic keys never exist.
 - Vouch releases before 1.14 decode SSZ with mainnet sizes only. On the minimal preset every proposal fails to decode, so Vouch fixtures use the mainnet preset with 6s slots.
 
 ## Tracing
