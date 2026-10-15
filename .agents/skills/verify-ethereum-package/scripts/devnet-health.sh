@@ -66,6 +66,7 @@ max_head=0
 for cl in "${CLS[@]}"; do [[ -n "${HEAD[$cl]}" ]] && (( ${HEAD[$cl]} > max_head )) && max_head=${HEAD[$cl]}; done
 declare -A ROOT CANON
 slot=0
+chain=1
 for back in $(seq 2 12); do
   try=$(( max_head - back )); (( try < 1 )) && break
   have=0
@@ -82,29 +83,35 @@ if (( slot > 0 )); then
   # Without a strict majority there is no chain to compare against: a split.
   if (( majority_count * 2 <= ${#CLS[@]} )); then
     bad "no root at slot $slot is shared by a majority of ${#CLS[@]} clients: the chain is split"
-    majority=""
+    majority=""; chain=0
   fi
   for cl in "${CLS[@]}"; do
-    if [[ -n "$majority" && "${ROOT[$cl]}" == "$majority" ]]; then CANON[$cl]=1; ok "$cl has root ${majority:0:18} at slot $slot"
+    if [[ -z "$majority" ]]; then CANON[$cl]=0; note "  $cl root at slot $slot is ${ROOT[$cl]:-missing}"
+    elif [[ "${ROOT[$cl]}" == "$majority" ]]; then CANON[$cl]=1; ok "$cl has root ${majority:0:18} at slot $slot"
     else CANON[$cl]=0; diverge "$cl" "root at slot $slot is ${ROOT[$cl]:-missing}, majority has ${majority:0:18}"; fi
   done
-else
-  warn "chain too young or no slot near the heads has a block on a majority; root agreement not checked"
+elif (( max_head < 3 )); then
+  warn "chain too young (head $max_head); root agreement not checked"
   for cl in "${CLS[@]}"; do CANON[$cl]=1; done
+else
+  # A majority without blocks near the newest head is stalled or forked.
+  bad "no slot from $(( max_head - 12 )) to $(( max_head - 2 )) has a block on a majority of ${#CLS[@]} clients"
+  for cl in "${CLS[@]}"; do CANON[$cl]=0; done
+  chain=0
 fi
 
 note ""
 note "per-client head and finality"
 max_fin=0
 for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${FIN[$cl]}" ]] && (( ${FIN[$cl]} > max_fin )) && max_fin=${FIN[$cl]}; done
-head_epoch=$(( wall / spe ))
+wall_epoch=$(( wall / spe ))
 for cl in "${CLS[@]}"; do
   if [[ -z "${HEAD[$cl]}" ]]; then diverge "$cl" "beacon API does not answer"; continue; fi
   gap=$(( wall - ${HEAD[$cl]} )); (( gap < 0 )) && gap=0
   line="head ${HEAD[$cl]} ($gap behind wall clock), ${PEERS[$cl]:-?} peers, justified ${JUST[$cl]:-?}, finalized ${FIN[$cl]:-?}"
   if (( gap > 8 )); then diverge "$cl" "$line; stalled"
   elif [[ "${PEERS[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; no peers"
-  elif (( head_epoch >= 5 )) && [[ "${FIN[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; nothing finalized by epoch $head_epoch"
+  elif (( wall_epoch >= 5 )) && [[ "${FIN[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; nothing finalized by epoch $wall_epoch"
   elif (( max_fin - ${FIN[$cl]:-0} > 2 )); then diverge "$cl" "$line; finality behind the others"
   else ok "$cl $line"; fi
 done
@@ -112,19 +119,24 @@ done
 # The majority chain itself.
 note ""
 note "majority chain"
-canon_heads=(); for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${HEAD[$cl]}" ]] && canon_heads+=("${HEAD[$cl]}"); done
-best_head=$(printf '%s\n' "${canon_heads[@]:-0}" | sort -n | tail -1)
-if (( wall - best_head > 8 )); then bad "majority head $best_head is $(( wall - best_head )) slots behind the wall clock"; else ok "majority head $best_head"; fi
-max_just=0
-for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${JUST[$cl]}" ]] && (( ${JUST[$cl]} > max_just )) && max_just=${JUST[$cl]}; done
-if (( head_epoch >= 4 )); then
-  (( head_epoch - max_just > 4 )) && bad "justification stuck at epoch $max_just while head is at epoch $head_epoch" || ok "justified epoch $max_just at head epoch $head_epoch"
-fi
-if (( head_epoch >= 5 )); then
-  (( max_fin > 0 )) && ok "finalized epoch $max_fin at head epoch $head_epoch" || bad "nothing finalized by head epoch $head_epoch"
-  (( head_epoch - max_fin > 6 )) && bad "finality $(( head_epoch - max_fin )) epochs behind head"
+best_head=0
+if (( chain )); then
+  canon_heads=(); for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${HEAD[$cl]}" ]] && canon_heads+=("${HEAD[$cl]}"); done
+  best_head=$(printf '%s\n' "${canon_heads[@]:-0}" | sort -n | tail -1)
+  if (( wall - best_head > 8 )); then bad "majority head $best_head is $(( wall - best_head )) slots behind the wall clock"; else ok "majority head $best_head"; fi
+  max_just=0
+  for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${JUST[$cl]}" ]] && (( ${JUST[$cl]} > max_just )) && max_just=${JUST[$cl]}; done
+  if (( wall_epoch >= 4 )); then
+    (( wall_epoch - max_just > 4 )) && bad "justification stuck at epoch $max_just at wall-clock epoch $wall_epoch" || ok "justified epoch $max_just at wall-clock epoch $wall_epoch"
+  fi
+  if (( wall_epoch >= 5 )); then
+    (( max_fin > 0 )) && ok "finalized epoch $max_fin at wall-clock epoch $wall_epoch" || bad "nothing finalized by wall-clock epoch $wall_epoch"
+    (( wall_epoch - max_fin > 6 )) && bad "finality $(( wall_epoch - max_fin )) epochs behind the wall clock"
+  else
+    warn "wall-clock epoch $wall_epoch; first finality is expected around epoch 4"
+  fi
 else
-  warn "head epoch $head_epoch; first finality is expected around epoch 4"
+  note "  skipped: there is no majority chain"
 fi
 # Two clients finalized at the same epoch with different roots is a split.
 for a in "${CLS[@]}"; do for b in "${CLS[@]}"; do
