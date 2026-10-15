@@ -6,7 +6,7 @@
 set -euo pipefail
 if [[ $# -ne 2 ]]; then
   echo "usage: $0 <args-file> <evidence-dir>" >&2
-  exit 64
+  exit 2
 fi
 args="$1"
 dir="$2"
@@ -33,7 +33,9 @@ out="$dir/SETUP-before.md"
   echo
   echo "| Role | Image |"
   echo "|---|---|"
-  grep -nE '^\s*-?\s*[a-z_]*image:\s*\S' "$args" | sed -E 's/^([0-9]+):\s*-?\s*([a-z_]*image):\s*"?([^" ]+)"?.*/| \2 (line \1) | `\3` |/'
+  # An args file may set no images; the package defaults apply then.
+  grep -nE '^\s*-?\s*[a-z_]*image:\s*\S' "$args" | sed -E 's/^([0-9]+):\s*-?\s*([a-z_]*image):\s*"?([^" ]+)"?.*/| \2 (line \1) | `\3` |/' ||
+    echo "| all | package defaults |"
   echo
   echo "## Host"
   echo
