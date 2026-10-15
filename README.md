@@ -598,9 +598,11 @@ participants:
     # Static-delay attester and proposer delays. Defaults to "0s"
     vouch_multiinstance_attester_delay: "0s"
     vouch_multiinstance_proposer_delay: "0s"
-    # Use the package's strategies, which spread work over every beacon node
-    # (majority attestation data, best proposals, multinode submitter). Set to
-    # false to run with Vouch's own default strategies. Defaults to true
+    # Use the package's multi-node strategies (majority attestation data, best
+    # proposals, multinode submitter) over the beacon nodes Vouch connects to.
+    # Vouch connects only to its own beacon node unless vc_beacon_node_indices
+    # lists more. The majority threshold is 2, or 1 with a single beacon node.
+    # Set to false to run with Vouch's own default strategies. Defaults to true
     vouch_package_strategies: true
     # Strategies YAML that replaces the package's strategies. Defaults to ""
     vouch_strategies_yaml: ""
@@ -1435,8 +1437,8 @@ tempo_params:
   # Defaults to grafana/tempo:2.7.2 (pinned by digest)
   image: "grafana/tempo:2.7.2"
 
-# Serve Tempo's OTLP receivers over mTLS with certificates from a dedicated CA.
-# Vouch traces with a client certificate; Dirk and the CL clients do not trace.
+# Serve Tempo's OTLP gRPC receiver over mTLS with certificates from a dedicated CA,
+# and turn off the OTLP HTTP receiver. Vouch traces with a client certificate; Dirk and the CL clients do not trace.
 # Requires tempo in additional_services. Defaults to false
 tempo_mtls_enabled: false
 

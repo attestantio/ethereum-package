@@ -17,7 +17,6 @@ def plan_clusters(participants):
       clusters: cluster structs in creation order (id, peer_count, threshold,
         image, validator_count, account_start)
       cluster_ids: {participant index: cluster id} for every Vouch participant
-      account_ranges: {participant index: struct(start, count)}
     """
     clusters = []
     clusters_by_id = {}
@@ -71,7 +70,9 @@ def plan_clusters(participants):
         next_account += participant.validator_count
 
     if implicit_active > 0 and len(clusters) != 1:
-        fail("Multiple active Vouch creators without dirk_cluster_id are not supported")
+        fail(
+            "Every active Vouch needs a dirk_cluster_id when more than one active Vouch exists"
+        )
 
     for index, participant in enumerate(participants):
         if participant.vc_type != constants.VC_TYPE.vouch:
@@ -104,17 +105,7 @@ def plan_clusters(participants):
                         )
                     )
 
-    return struct(
-        clusters=clusters,
-        cluster_ids=cluster_ids,
-        account_ranges={
-            index: struct(
-                start=clusters_by_id[cluster_id].account_start,
-                count=clusters_by_id[cluster_id].validator_count,
-            )
-            for index, cluster_id in cluster_ids.items()
-        },
-    )
+    return struct(clusters=clusters, cluster_ids=cluster_ids)
 
 
 def cluster_prefix(cluster_id):

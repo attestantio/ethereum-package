@@ -77,7 +77,6 @@ def launch_participant_network(
     # In Tempo mTLS mode only Vouch, which holds a client certificate, traces.
     plain_tempo_url = tempo_otlp_grpc_url if not tempo_mtls_enabled else None
     participant_cluster_ids = cluster_plan.cluster_ids
-    vouch_account_ranges = cluster_plan.account_ranges
     cluster_dirk_contexts = {}
     cluster_validator_artifacts = []
     certmanager_cluster_info = {}
@@ -607,7 +606,7 @@ def launch_participant_network(
         )
 
         vc_keystores = None
-        if participant.validator_count != 0 and vc_type != constants.VC_TYPE.vouch:
+        if shared_utils.has_mnemonic_keys(participant):
             vc_keystores = preregistered_validator_keys_for_nodes[index]
 
         vc_context = None
@@ -689,7 +688,6 @@ def launch_participant_network(
 
         service_name = "vc-{0}".format(full_name)
         vc_binary_artifact = binary_artifacts.get(index, {}).get("vc", None)
-        account_range = vouch_account_ranges.get(index)
         vc_service_config = vc.get_vc_config(
             plan=plan,
             launcher=vc.new_vc_launcher(el_cl_genesis_data=el_cl_data),
@@ -714,13 +712,14 @@ def launch_participant_network(
             port_publisher=args_with_right_defaults.port_publisher,
             vc_index=current_vc_index,
             extra_files_artifacts=extra_files_artifacts,
-            tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            # Only Vouch holds a Tempo client certificate.
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url
+            if vc_type == constants.VC_TYPE.vouch
+            else plain_tempo_url,
             tempo_client_tls=tempo_client_tls,
             otel_otlp_grpc_url=otel_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
             dirk_context=cluster_dirk_contexts.get(participant_cluster_ids.get(index)),
-            vouch_account_start=account_range.start if account_range else None,
-            vouch_account_count=account_range.count if account_range else None,
         )
         if vc_service_config == None:
             continue

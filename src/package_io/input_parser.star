@@ -1677,6 +1677,30 @@ def parse_network_params(plan, input_args):
                         participant["vouch_multiinstance_style"]
                     )
                 )
+            if not participant["use_separate_vc"]:
+                fail("Vouch runs as a separate VC; remove use_separate_vc: false")
+            if (
+                not participant["vouch_package_strategies"]
+                and participant["vouch_strategies_yaml"] != ""
+            ):
+                fail(
+                    "vouch_strategies_yaml replaces the package strategies; it has no effect with vouch_package_strategies: false"
+                )
+            if participant["vouch_multiinstance_style"] == "":
+                delays_set = [
+                    field
+                    for field in [
+                        "vouch_multiinstance_attester_delay",
+                        "vouch_multiinstance_proposer_delay",
+                    ]
+                    if participant[field] != defaults[field]
+                ]
+                if delays_set:
+                    fail(
+                        "{0} require vouch_multiinstance_style: static-delay".format(
+                            ", ".join(delays_set)
+                        )
+                    )
 
         validator_count = participant["validator_count"]
         if validator_count == None:

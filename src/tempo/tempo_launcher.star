@@ -134,12 +134,15 @@ def get_config(
     files = {
         TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
     }
+    ports = dict(USED_PORTS)
     if tls_artifact != None:
         files[TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE] = tls_artifact
+        # OTLP HTTP has no TLS here, so mTLS mode serves OTLP over gRPC only.
+        ports.pop(OTLP_HTTP_PORT_ID)
 
     return ServiceConfig(
         image=tempo_params.image,
-        ports=USED_PORTS,
+        ports=ports,
         public_ports=public_ports,
         files=files,
         cmd=[

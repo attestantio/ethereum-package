@@ -1393,7 +1393,7 @@ def run(plan, args={}):
                 index,
                 args_with_right_defaults.docker_cache_params,
                 network_params,
-                tempo_otlp_grpc_url,
+                tempo_otlp_grpc_url if not tempo_mtls_enabled else None,
             )
             prometheus_additional_metrics_jobs.extend(zkboost_metrics_jobs)
             plan.print("Successfully launched zkboost")

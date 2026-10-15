@@ -28,14 +28,14 @@ DIRK_USED_PORTS = {
 DIRK_CONFIG_TEMPLATE = """server:
   id: {{ .Id }}
   name: {{ .ServiceName }}
-  listen-address: 0.0.0.0:8881
+  listen-address: 0.0.0.0:{{ .GrpcPort }}
 log-level: Debug
 certificates:
   ca-cert: file:///certs/ca.crt
   server-cert: file:///certs/server.crt
   server-key: file:///certs/server.key
 metrics:
-  listen-address: 0.0.0.0:8181
+  listen-address: 0.0.0.0:{{ .MetricsPort }}
 storage-path: /tmp/protection
 stores:
 - name: Local
@@ -117,6 +117,8 @@ def launch_dirk_cluster(
             "PeerEntries": peer_entries,
             "Permissions": permissions,
             "TracingConfig": tracing_config,
+            "GrpcPort": DIRK_GRPC_PORT_NUM,
+            "MetricsPort": DIRK_METRICS_PORT_NUM,
         }
         config_artifact = plan.render_templates(
             {
