@@ -1,0 +1,21 @@
+# Attestant fixture tooling, kept out of upstream workflow files.
+name: Fixture tooling
+
+on:
+  pull_request:
+
+concurrency:
+  group: "fixture-tooling-${{ github.head_ref }}"
+  cancel-in-progress: true
+
+jobs:
+  generated-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Test fixture tooling and check generated fixtures for drift
+        run: |
+          pip install pyyaml --quiet
+          python3 -m unittest discover -s .github/fixtures
+          python3 .github/fixtures/generate-fixture.py --check
