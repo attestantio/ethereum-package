@@ -63,10 +63,7 @@ def get_config(
     tempo_otlp_grpc_url=None,
     vouch_account_start=None,
     vouch_account_count=None,
-    tempo_mtls_enabled=False,
-    tempo_client_cert_artifact=None,
-    tempo_client_key_artifact=None,
-    tempo_ca_artifact=None,
+    tempo_client_tls=None,
 ):
     log_level = input_parser.get_client_log_level_or_default(
         participant.vc_log_level, global_log_level, VERBOSITY_LEVELS
@@ -85,14 +82,14 @@ def get_config(
     tracing_yaml = ""
     if tempo_otlp_grpc_url != None:
         tracing_address = tempo_otlp_grpc_url.replace("http://", "")
-        if tempo_mtls_enabled:
+        if tempo_client_tls != None:
             tracing_yaml = """tracing:
   address: '{0}'
-  client-cert: 'file:///tempo-certs/client.crt'
-  client-key: 'file:///tempo-certs/client.key'
-  ca-cert: 'file:///tempo-certs/ca.crt'
+  client-cert: 'file://{1}/client.crt'
+  client-key: 'file://{1}/client.key'
+  ca-cert: 'file://{1}/ca.crt'
 """.format(
-                tracing_address
+                tracing_address, VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE
             )
         else:
             tracing_yaml = "tracing:\n  address: '{0}'\n".format(tracing_address)
@@ -101,7 +98,7 @@ def get_config(
         accounts_yaml = (
             "\n".join(
                 [
-                    "      - '{0}/{1}'".format(dirk_context.wallet_name, account)
+                    "      - '{0}/{1}'".format(constants.DIRK_WALLET_NAME, account)
                     for account in range(
                         vouch_account_start, vouch_account_start + vouch_account_count
                     )
@@ -110,7 +107,7 @@ def get_config(
             + "\n"
         )
     else:
-        accounts_yaml = "      - '{0}'\n".format(dirk_context.wallet_name)
+        accounts_yaml = "      - '{0}'\n".format(constants.DIRK_WALLET_NAME)
 
     if participant.vouch_default_strategies:
         strategies_yaml = ""
@@ -133,44 +130,42 @@ def get_config(
             participant.vouch_multiinstance_proposer_delay,
         )
 
-    # Build the vouch.yml config file content
-    vouch_config_template = """log-level: '{0}'
+    # The list values end in a newline, so the line after each starts cleanly.
+    vouch_config = """log-level: '{log_level}'
 beacon-node-addresses:
-{1}
-accountmanager:
+{beacon_nodes}accountmanager:
   dirk:
     endpoints:
-{2}    client-cert: 'file://{3}/client.crt'
-    client-key: 'file://{3}/client.key'
-    ca-cert: 'file://{3}/ca.crt'
+{dirk_endpoints}    client-cert: 'file://{certs_dir}/client.crt'
+    client-key: 'file://{certs_dir}/client.key'
+    ca-cert: 'file://{certs_dir}/ca.crt'
     accounts:
-{4}    timeout: '30s'
-{9}blockrelay:
-  fallback-fee-recipient: '{5}'
+{accounts}    timeout: '30s'
+{strategies}{multiinstance}blockrelay:
+  fallback-fee-recipient: '{fee_recipient}'
   fallback-gas-limit: 30000000
 metrics:
   prometheus:
-    listen-address: '0.0.0.0:{6}'
+    listen-address: '0.0.0.0:{metrics_port}'
 graffiti:
   static:
-    value: '{7}'
-{8}""".format(
-        log_level,
-        beacon_node_addresses_yaml.rstrip("\n"),
-        dirk_endpoints_yaml,
-        VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE,
-        accounts_yaml,
-        constants.VALIDATING_REWARDS_ACCOUNT,
-        vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
-        full_name,
-        tracing_yaml,
-        strategies_yaml + multiinstance_yaml,
+    value: '{graffiti}'
+{tracing}""".format(
+        log_level=log_level,
+        beacon_nodes=beacon_node_addresses_yaml,
+        dirk_endpoints=dirk_endpoints_yaml,
+        certs_dir=VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE,
+        accounts=accounts_yaml,
+        strategies=strategies_yaml,
+        multiinstance=multiinstance_yaml,
+        fee_recipient=constants.VALIDATING_REWARDS_ACCOUNT,
+        metrics_port=vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
+        graffiti=full_name,
+        tracing=tracing_yaml,
     )
 
     # Create the config file artifact using render_templates
-    config_template_and_data = shared_utils.new_template_and_data(
-        vouch_config_template, {}
-    )
+    config_template_and_data = shared_utils.new_template_and_data(vouch_config, {})
     config_files_artifact_name = plan.render_templates(
         {VOUCH_CONFIG_FILENAME: config_template_and_data},
         "vouch-config-{0}".format(vc_index),
@@ -185,24 +180,9 @@ graffiti:
         VOUCH_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
     }
 
-    # Prepare a combined TLS cert artifact with canonical filenames
-    # (client.crt, client.key, ca.crt) that Vouch expects.
-    certs_artifact = _prepare_vouch_certs(
-        plan,
-        vc_index,
-        dirk_context.ca_cert_artifact,
-        dirk_context.client_cert_artifact,
-        dirk_context.client_key_artifact,
-    )
-    files[VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE] = certs_artifact
-    if tempo_mtls_enabled:
-        files[VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE] = _prepare_vouch_tempo_certs(
-            plan,
-            vc_index,
-            tempo_ca_artifact,
-            tempo_client_cert_artifact,
-            tempo_client_key_artifact,
-        )
+    files[VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE] = dirk_context.vouch_certs_artifact
+    if tempo_client_tls != None:
+        files[VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE] = tempo_client_tls
 
     public_ports = {}
     if port_publisher.vc_enabled:
@@ -270,71 +250,3 @@ graffiti:
     if len(participant.vc_devices) > 0:
         config_args["devices"] = participant.vc_devices
     return ServiceConfig(**config_args)
-
-
-def _prepare_vouch_certs(
-    plan, vc_index, ca_cert_artifact, client_cert_artifact, client_key_artifact
-):
-    """Combine separate TLS cert artifacts into a single artifact with canonical names.
-
-    The dirk_context cert artifacts contain files named after the client CN
-    (e.g. vouch-client.crt, vouch-client.key) and ca.crt. This function copies
-    them into a single directory with the names client.crt, client.key, ca.crt
-    that the vouch.yml config references.
-    """
-    result = plan.run_sh(
-        name="prepare-vouch-certs-{0}".format(vc_index),
-        description="Preparing TLS cert files for Vouch VC {0}".format(vc_index),
-        run="\n".join(
-            [
-                "set -e",
-                "mkdir -p /out",
-                "cp /ca-cert/* /out/ca.crt",
-                "cp /client-cert/* /out/client.crt",
-                "cp /client-key/* /out/client.key",
-            ]
-        ),
-        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
-        files={
-            "/ca-cert": ca_cert_artifact,
-            "/client-cert": client_cert_artifact,
-            "/client-key": client_key_artifact,
-        },
-        store=[
-            StoreSpec(
-                src="/out/",
-                name="vouch-certs-{0}".format(vc_index),
-            )
-        ],
-        wait=None,
-    )
-
-    return result.files_artifacts[0]
-
-
-def _prepare_vouch_tempo_certs(
-    plan, vc_index, ca_artifact, client_cert_artifact, client_key_artifact
-):
-    result = plan.run_sh(
-        name="prepare-vouch-tempo-certs-{0}".format(vc_index),
-        description="Preparing Tempo mTLS cert files for Vouch VC {0}".format(vc_index),
-        run="\n".join(
-            [
-                "set -e",
-                "mkdir -p /out",
-                "cp /ca/* /out/ca.crt",
-                "cp /client-cert/* /out/client.crt",
-                "cp /client-key/* /out/client.key",
-                "chmod 0644 /out/ca.crt /out/client.crt /out/client.key",
-            ]
-        ),
-        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
-        files={
-            "/ca": ca_artifact,
-            "/client-cert": client_cert_artifact,
-            "/client-key": client_key_artifact,
-        },
-        store=[StoreSpec(src="/out/", name="vouch-tempo-certs-{0}".format(vc_index))],
-        wait=None,
-    )
-    return result.files_artifacts[0]
