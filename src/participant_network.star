@@ -125,6 +125,13 @@ def launch_participant_network(
                 for name in service_names
             ],
             vouch_certs_artifact=cert_result.vouch_certs,
+            accounts=[
+                "{0}/{1}".format(constants.DIRK_WALLET_NAME, account)
+                for account in range(
+                    cluster.account_start,
+                    cluster.account_start + cluster.validator_count,
+                )
+            ],
         )
         if args_with_right_defaults.certmanager_test_enabled:
             certmanager_cluster_info[cluster.id] = struct(
