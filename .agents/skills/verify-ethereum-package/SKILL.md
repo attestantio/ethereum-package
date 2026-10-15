@@ -9,7 +9,7 @@ The package's user surface is a YAML args file passed to `kurtosis run`, the enc
 
 Launch mechanics (config fields, `kurtosis` commands, images) are in the upstream `kurtosis-ethereum` skill in this repo (`.agents/skills/kurtosis-ethereum`). This skill adds ownership, readiness, proof and evidence. Pick the fixture from [`fixtures/README.md`](fixtures/README.md) first; every check maps to a recipe there.
 
-Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4 or newer, `jq`, `curl`, `docker` and `kurtosis`; `review-page.sh` also needs `uv`.
+Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4.3 or newer, `git`, `jq`, `curl`, `shasum`, `docker` and `kurtosis`; `review-page.sh` also needs `uv`.
 
 ## Launch
 
@@ -27,9 +27,9 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 .agents/skills/verify-ethereum-package/scripts/doctor.sh "$enclave"
 ```
 
-Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-`, `dirk-` and `tempo-` container is running, and every beacon node's head is within 2 slots of the wall clock. Exit 0 means worth driving. Run it first, and again whenever something looks off.
+Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-` and `dirk-` container and `tempo` is running, and every beacon node's head is within 2 slots of the wall clock. Exit 0 means worth driving. Run it first, and again whenever something looks off.
 
-For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is a broken majority chain, 2 is a client off the chain, stalled or not finalizing while the majority is healthy. A healthy majority does not verify a diverged client: record each one.
+For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client off the chain, stalled or not finalizing while the majority is healthy, and 2 means the check could not run. A healthy majority does not verify a diverged client: record each one.
 
 ## Drive
 

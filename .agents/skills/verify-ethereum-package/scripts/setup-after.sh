@@ -11,9 +11,8 @@ source "$(dirname "$0")/lib.sh"
 dir="$2"
 mkdir -p "$dir"
 out="$dir/SETUP-after.md"
-inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)"
+inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { echo "enclave $enclave not found" >&2; exit 1; }
 uuid="$(awk '/^UUID:/ {print $2; exit}' <<<"$inspect")"
-rpc() { curl -fsS -m 5 -X POST -H 'Content-Type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}" "$1" | jq -r .result; }
 {
   echo "# SETUP-after: $(basename "$dir")"
   echo
@@ -33,7 +32,7 @@ rpc() { curl -fsS -m 5 -X POST -H 'Content-Type: application/json' -d "{\"jsonrp
     echo "- $cl: $(curl -fsS -m 5 "$(port_url "$enclave" "$cl" http)/eth/v1/node/version" | jq -r .data.version)"
   done
   for el in $(services_of el "$inspect"); do
-    echo "- $el: $(rpc "$(port_url "$enclave" "$el" rpc)" web3_clientVersion)"
+    echo "- $el: $(el_rpc "$(port_url "$enclave" "$el" rpc)" web3_clientVersion)"
   done
   echo
   echo "## Served network"

@@ -17,11 +17,11 @@ Preconditions: a fresh enclave name.
 
 Ready when: the launch exits 0, `doctor.sh` passes and two epochs have passed, so spans exist.
 
-- **Launch.** `kurtosis run . --enclave "$enclave" --args-file .github/tests/tempo-plain.yaml > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
-- **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+Health epoch: 5.
+
+Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
+
 - **Assertions.** `.github/tests/assert-tempo-plain.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Pass: exit 0 (plain receivers, no TLS settings, Vouch and Dirk spans found). Fail: any other exit.
-- **Health.** After epoch 5, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: exit 1 (chain broken) or 2 (a client off the chain, stalled or not finalizing).
-- **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Gotchas
 
