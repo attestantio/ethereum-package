@@ -42,8 +42,6 @@ def get_vc_config(
     otel_otlp_grpc_url=None,
     vc_binary_artifact=None,
     dirk_context=None,
-    vouch_account_start=None,
-    vouch_account_count=None,
     tempo_client_tls=None,
 ):
     if node_keystore_files == None and vc_type != constants.VC_TYPE.vouch:
@@ -130,8 +128,6 @@ def get_vc_config(
             vc_binary_artifact=vc_binary_artifact,
             tempo_otlp_grpc_url=tempo_otlp_grpc_url,
             tempo_client_tls=tempo_client_tls,
-            vouch_account_start=vouch_account_start,
-            vouch_account_count=vouch_account_count,
         )
         return config
     elif vc_type == constants.VC_TYPE.grandine:

@@ -15,8 +15,10 @@ distributor:
             key_file: {{ .TempoServerKeyPath }}
             client_ca_file: {{ .TempoClientCAPath }}
 {{- end }}
+{{- if not .TempoMTLSEnabled }}
         http:
           endpoint: 0.0.0.0:{{ .OTLPHTTPPort }}
+{{- end }}
 
 storage:
   trace:

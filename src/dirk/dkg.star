@@ -1,5 +1,6 @@
 constants = import_module("../package_io/constants.star")
 dirk_clusters = import_module("../package_io/dirk_clusters.star")
+dirk_launcher = import_module("./dirk_launcher.star")
 
 
 def run_dkg_ceremony(
@@ -37,13 +38,17 @@ def run_dkg_ceremony(
         'echo "Starting DKG ceremony: creating {0} distributed validator account(s)"'.format(
             validator_count
         ),
-        'echo "  Remote: {0}:8881"'.format(first_dirk_service),
+        'echo "  Remote: {0}:{1}"'.format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
         'echo "  Threshold: {0}/{1}"'.format(signing_threshold, peer_count),
         "",
         "for i in $(seq {0} {1}); do".format(account_start, account_end),
         '  echo "Creating account {0}/$i ..."'.format(wallet_name),
         "  /app/ethdo account create \\",
-        "    --remote={0}:8881 \\".format(first_dirk_service),
+        "    --remote={0}:{1} \\".format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
         "    --server-ca-cert=/certs/ca.crt \\",
         "    --client-cert=/certs/ethdo.crt \\",
         "    --client-key=/certs/ethdo.key \\",
@@ -129,7 +134,9 @@ def extract_dkg_validators_file(
         "for i in $(seq {0} {1}); do".format(account_start, account_end),
         '  echo "Getting account info for {0}/$i ..."'.format(wallet_name),
         "  INFO=$(/app/ethdo account info \\",
-        "    --remote={0}:8881 \\".format(first_dirk_service),
+        "    --remote={0}:{1} \\".format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
         "    --server-ca-cert=/certs/ca.crt \\",
         "    --client-cert=/certs/ethdo.crt \\",
         "    --client-key=/certs/ethdo.key \\",
