@@ -9,6 +9,8 @@ fi
 enclave=$1
 kurtosis service inspect "$enclave" vc-2-geth-lighthouse-vouch
 kurtosis enclave inspect "$enclave" | grep -A 2 -F 'vc-2-geth-lighthouse-vouch' | grep -q 'RUNNING'
+# Vouch has one beacon node, so the package's majority threshold drops to 1.
+kurtosis service exec "$enclave" vc-2-geth-lighthouse-vouch 'cat /config/vouch.yml' | grep -q 'threshold: 1'
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT

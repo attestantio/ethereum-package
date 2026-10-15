@@ -24,6 +24,8 @@ grep -Eq '^dirk_signer_process_requests_total\{request="proposal",result="succee
 grep -q 'cert_file: /etc/tempo/tls/server.crt' "$workdir/tempo"
 grep -q 'key_file: /etc/tempo/tls/server.key' "$workdir/tempo"
 grep -q 'client_ca_file: /etc/tempo/tls/ca.crt' "$workdir/tempo"
+# mTLS mode must not leave the plain OTLP HTTP receiver open.
+if grep -q ':4318' "$workdir/tempo"; then exit 1; fi
 grep -q 'rw-r--r--.*ca.crt' "$workdir/tempo"
 grep -q 'rw-r--r--.*server.crt' "$workdir/tempo"
 grep -q 'rw-r--r--.*server.key' "$workdir/tempo"
