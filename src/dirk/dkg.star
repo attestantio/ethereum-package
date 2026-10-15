@@ -8,9 +8,8 @@ def run_dkg_ceremony(
     validator_count,
     signing_threshold,
     peer_count,
-    wallet_name="DistributedWallet",
-    account_start=0,
-    cluster_id=None,
+    account_start,
+    cluster_id,
 ):
     """Run the DKG ceremony to create distributed validator accounts.
 
@@ -25,12 +24,8 @@ def run_dkg_ceremony(
         validator_count: Number of validator accounts to create.
         signing_threshold: Signing threshold for the distributed keys.
         peer_count: Total number of Dirk peers (participants).
-        wallet_name: Name of the distributed wallet.
-
-    Returns:
-        A struct with validator_count and wallet_name for downstream use.
     """
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
+    wallet_name = constants.DIRK_WALLET_NAME
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -67,23 +62,16 @@ def run_dkg_ceremony(
 
     dkg_timeout = "1800s" if validator_count >= 128 else "300s"
     plan.run_sh(
-        name="dkg-ceremony{0}".format(
-            "-{0}".format(cluster_id) if cluster_id != None else ""
-        ),
+        name="dkg-ceremony{0}".format(_suffix(cluster_id)),
         description="Running DKG ceremony to create {0} distributed validator account(s)".format(
             validator_count
         ),
         run="\n".join(script_lines),
         image=constants.DEFAULT_ETHDO_IMAGE,
         files={
-            "/certs": ethdo_certs,
+            "/certs": cert_result.ethdo_certs,
         },
         wait=dkg_timeout,
-    )
-
-    return struct(
-        validator_count=validator_count,
-        wallet_name=wallet_name,
     )
 
 
@@ -92,9 +80,8 @@ def extract_dkg_validators_file(
     dirk_service_names,
     cert_result,
     validator_count,
-    wallet_name="DistributedWallet",
-    account_start=0,
-    cluster_id=None,
+    account_start,
+    cluster_id,
 ):
     """Extract composite public keys from DKG accounts and create a validators file.
 
@@ -108,12 +95,11 @@ def extract_dkg_validators_file(
         dirk_service_names: List of Dirk service names.
         cert_result: Return value from certs.generate_certs().
         validator_count: Number of validator accounts created by DKG.
-        wallet_name: Name of the distributed wallet.
 
     Returns:
         A file artifact containing validators.txt.
     """
-    ethdo_certs = _prepare_ethdo_certs(plan, cert_result, cluster_id)
+    wallet_name = constants.DIRK_WALLET_NAME
 
     first_dirk_service = dirk_service_names[0]
     account_end = account_start + validator_count - 1
@@ -172,23 +158,19 @@ def extract_dkg_validators_file(
     ]
 
     result = plan.run_sh(
-        name="extract-dkg-validators{0}".format(
-            "-{0}".format(cluster_id) if cluster_id != None else ""
-        ),
+        name="extract-dkg-validators{0}".format(_suffix(cluster_id)),
         description="Extracting {0} DKG composite public keys for genesis".format(
             validator_count
         ),
         run="\n".join(script_lines),
         image=constants.DEFAULT_ETHDO_IMAGE,
         files={
-            "/certs": ethdo_certs,
+            "/certs": cert_result.ethdo_certs,
         },
         store=[
             StoreSpec(
                 src="/out/",
-                name="dkg-validators-file{0}".format(
-                    "-{0}".format(cluster_id) if cluster_id != None else ""
-                ),
+                name="dkg-validators-file{0}".format(_suffix(cluster_id)),
             ),
         ],
         wait="300s",
@@ -197,40 +179,5 @@ def extract_dkg_validators_file(
     return result.files_artifacts[0]
 
 
-def _prepare_ethdo_certs(plan, cert_result, cluster_id=None):
-    """Assemble ethdo client certs and CA cert into a single directory artifact.
-
-    Returns a file artifact containing ca.crt, ethdo.crt, and ethdo.key.
-    """
-    result = plan.run_sh(
-        name="prepare-ethdo-certs{0}".format(
-            "-{0}".format(cluster_id) if cluster_id != None else ""
-        ),
-        description="Preparing ethdo client certificates",
-        run="\n".join(
-            [
-                "set -e",
-                "mkdir -p /out",
-                "cp /ca-cert/ca.crt /out/ca.crt",
-                "cp /ethdo-cert/ethdo-client.crt /out/ethdo.crt",
-                "cp /ethdo-key/ethdo-client.key /out/ethdo.key",
-            ]
-        ),
-        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
-        files={
-            "/ca-cert": cert_result.ca_cert,
-            "/ethdo-cert": cert_result.ethdo_client_cert,
-            "/ethdo-key": cert_result.ethdo_client_key,
-        },
-        store=[
-            StoreSpec(
-                src="/out/",
-                name="ethdo-dkg-certs{0}".format(
-                    "-{0}".format(cluster_id) if cluster_id != None else ""
-                ),
-            )
-        ],
-        wait=None,
-    )
-
-    return result.files_artifacts[0]
+def _suffix(cluster_id):
+    return "-{0}".format(cluster_id) if cluster_id != "" else ""
