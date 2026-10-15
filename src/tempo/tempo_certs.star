@@ -1,42 +1,36 @@
-OPENSSL_IMAGE = "alpine/openssl:3.5.5@sha256:7a1465c710d66ef753236a2d96c9c41f1fb0453862e5794640d6065aa1853087"
+constants = import_module("../package_io/constants.star")
 
 CERT_VALIDITY_DAYS_LONG = 1825
-TEMPO_SERVICE_DNS = "tempo"
 TEMPO_CLIENT_CN = "vouch-tracing-client"
 
 
 def generate_tempo_certs(plan):
-    store_specs = [
-        StoreSpec(src="/certs/ca/ca.crt", name="tempo-ca-cert"),
-        StoreSpec(src="/certs/server/", name="tempo-server-cert"),
-        StoreSpec(
-            src="/certs/client/{0}.crt".format(TEMPO_CLIENT_CN),
-            name="tempo-client-cert",
-        ),
-        StoreSpec(
-            src="/certs/client/{0}.key".format(TEMPO_CLIENT_CN), name="tempo-client-key"
-        ),
-    ]
+    """Generate Tempo's mTLS material as two directories ready to mount.
+
+    server_tls: server.crt, server.key and the client CA ca.crt, for Tempo.
+    client_tls: client.crt, client.key and ca.crt, for Vouch.
+    """
     result = plan.run_sh(
         name="generate-tempo-mtls-certs",
         description="Generating Tempo CA, server, and Vouch tracing client certificates",
         run=_build_tempo_cert_script(),
-        image=OPENSSL_IMAGE,
-        store=store_specs,
+        image=constants.OPENSSL_IMAGE,
+        store=[
+            StoreSpec(src="/certs/server/", name="tempo-server-tls"),
+            StoreSpec(src="/certs/client/", name="tempo-client-tls"),
+        ],
         wait=None,
     )
     return struct(
-        ca_artifact=result.files_artifacts[0],
-        server_cert_artifact=result.files_artifacts[1],
-        client_cert_artifact=result.files_artifacts[2],
-        client_key_artifact=result.files_artifacts[3],
+        server_tls=result.files_artifacts[0],
+        client_tls=result.files_artifacts[1],
     )
 
 
 def _build_tempo_cert_script():
     ca = "/certs/ca/ca"
     server = "/certs/server/server"
-    client = "/certs/client/{0}".format(TEMPO_CLIENT_CN)
+    client = "/certs/client/client"
     return "\n".join(
         [
             "set -e",
@@ -65,5 +59,10 @@ def _build_tempo_cert_script():
             "openssl x509 -req -in {0}.csr -CA {1}.crt -CAkey {1}.key -CAcreateserial -out {0}.crt -days {2} -sha256 -extfile {0}.ext".format(
                 client, ca, CERT_VALIDITY_DAYS_LONG
             ),
+            "cp {0}.crt /certs/server/ca.crt".format(ca),
+            "cp {0}.crt /certs/client/ca.crt".format(ca),
+            "rm -f /certs/server/server.csr /certs/server/server.ext /certs/client/client.csr /certs/client/client.ext",
+            # Tempo and Vouch run as non-root users that must read these files.
+            "chmod 0644 /certs/server/* /certs/client/*",
         ]
     )

@@ -481,16 +481,9 @@ def run(plan, args={}):
         args_with_right_defaults.tempo_mtls_enabled
         and "tempo" in args_with_right_defaults.additional_services
     )
-    tempo_server_cert_artifact = None
-    tempo_client_ca_artifact = None
-    tempo_client_cert_artifact = None
-    tempo_client_key_artifact = None
+    tempo_tls = None
     if tempo_mtls_enabled:
-        tempo_cert_result = tempo_certs.generate_tempo_certs(plan)
-        tempo_server_cert_artifact = tempo_cert_result.server_cert_artifact
-        tempo_client_ca_artifact = tempo_cert_result.ca_artifact
-        tempo_client_cert_artifact = tempo_cert_result.client_cert_artifact
-        tempo_client_key_artifact = tempo_cert_result.client_key_artifact
+        tempo_tls = tempo_certs.generate_tempo_certs(plan)
     if "tempo" in args_with_right_defaults.additional_services:
         tempo_otlp_grpc_url = "http://{}:{}".format(
             tempo.SERVICE_NAME, tempo.OTLP_GRPC_PORT_NUMBER
@@ -561,9 +554,7 @@ def run(plan, args={}):
         otel_otlp_http_traces_url,
         detected_backend,
         tempo_mtls_enabled=tempo_mtls_enabled,
-        tempo_client_cert_artifact=tempo_client_cert_artifact,
-        tempo_client_key_artifact=tempo_client_key_artifact,
-        tempo_client_ca_artifact=tempo_client_ca_artifact,
+        tempo_client_tls=tempo_tls.client_tls if tempo_tls != None else None,
     )
 
     if bootnodoor_enabled:
@@ -1289,8 +1280,7 @@ def run(plan, args={}):
                 args_with_right_defaults.port_publisher,
                 index,
                 tempo_mtls_enabled=tempo_mtls_enabled,
-                tempo_server_cert_artifact=tempo_server_cert_artifact,
-                tempo_client_ca_artifact=tempo_client_ca_artifact,
+                tempo_server_tls=tempo_tls.server_tls if tempo_tls != None else None,
             )
             plan.print("Successfully launched tempo")
         elif additional_service == "prometheus_grafana":
@@ -1466,16 +1456,11 @@ def run(plan, args={}):
         )
         plan.print("Successfully launched grafana")
 
-    if args_with_right_defaults.certmanager_test_enabled:
-        certmanager_test.run_certmanager_tests(
-            plan,
-            certmanager_cluster_info,
-            all_cl_contexts[0].beacon_service_name,
-            tempo_query_url=tempo_query_url,
-            tempo_mtls_enabled=tempo_mtls_enabled,
-        )
-
-    if args_with_right_defaults.wait_for_finalization:
+    # The certmanager tests need a finalized chain.
+    if (
+        args_with_right_defaults.wait_for_finalization
+        or args_with_right_defaults.certmanager_test_enabled
+    ):
         plan.print("Waiting for the first finalized epoch")
         first_cl_client = all_cl_contexts[0]
         first_client_beacon_name = first_cl_client.beacon_service_name
@@ -1493,6 +1478,14 @@ def run(plan, args={}):
             service_name=first_client_beacon_name,
         )
         plan.print("First finalized epoch occurred successfully")
+
+    if args_with_right_defaults.certmanager_test_enabled:
+        certmanager_test.run_certmanager_tests(
+            plan,
+            certmanager_cluster_info,
+            tempo_query_url=tempo_query_url,
+            tempo_mtls_enabled=tempo_mtls_enabled,
+        )
 
     grafana_info = struct(
         dashboard_path=GRAFANA_DASHBOARD_PATH_URL,

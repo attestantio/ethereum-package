@@ -37,6 +37,9 @@ VC_TYPE = struct(
 REMOTE_SIGNER_TYPE = struct(web3signer="web3signer")
 
 DEFAULT_ETHDO_IMAGE = "wealdtech/ethdo:1.37.4@sha256:4a6cb734e780a89fb710a13d421dd8c9a395004e5e35741b80462937943d0e64"
+OPENSSL_IMAGE = "alpine/openssl:3.5.5@sha256:7a1465c710d66ef753236a2d96c9c41f1fb0453862e5794640d6065aa1853087"
+ALPINE_IMAGE = "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d"
+DIRK_WALLET_NAME = "DistributedWallet"
 
 GLOBAL_LOG_LEVEL = struct(
     info="info",

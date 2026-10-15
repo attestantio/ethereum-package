@@ -1,18 +1,5 @@
-def new_dirk_context(
-    endpoints,
-    ca_cert_artifact,
-    client_cert_artifact,
-    client_key_artifact,
-    wallet_name="DistributedWallet",
-    threshold=2,
-    peer_count=3,
-):
+def new_dirk_context(endpoints, vouch_certs_artifact):
     return struct(
         endpoints=endpoints,
-        ca_cert_artifact=ca_cert_artifact,
-        client_cert_artifact=client_cert_artifact,
-        client_key_artifact=client_key_artifact,
-        wallet_name=wallet_name,
-        threshold=threshold,
-        peer_count=peer_count,
+        vouch_certs_artifact=vouch_certs_artifact,
     )

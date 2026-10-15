@@ -1,5 +1,6 @@
 shared_utils = import_module("../shared_utils/shared_utils.star")
 constants = import_module("../package_io/constants.star")
+certs = import_module("./certs.star")
 
 DIRK_GRPC_PORT_NUM = 8881
 DIRK_GRPC_PORT_ID = "grpc"
@@ -60,7 +61,6 @@ def launch_dirk_cluster(
     plan,
     dirk_image,
     peer_count,
-    signing_threshold,
     cert_result,
     vouch_client_name,
     tolerations,
@@ -74,7 +74,6 @@ def launch_dirk_cluster(
         plan: The Kurtosis plan.
         dirk_image: Docker image for Dirk.
         peer_count: Number of Dirk instances to launch.
-        signing_threshold: Signing threshold for distributed keys.
         cert_result: Return value from certs.generate_certs().
         vouch_client_name: CN of the Vouch client certificate.
         tolerations: Kubernetes tolerations.
@@ -98,9 +97,9 @@ def launch_dirk_cluster(
     # Build the permissions section — grant both vouch and ethdo clients access
     permission_lines = [
         "  {0}:".format(vouch_client_name),
-        "    DistributedWallet: All",
-        "  ethdo-client:",
-        "    DistributedWallet: All",
+        "    {0}: All".format(constants.DIRK_WALLET_NAME),
+        "  {0}:".format(certs.ETHDO_CLIENT_NAME),
+        "    {0}: All".format(constants.DIRK_WALLET_NAME),
     ]
     permissions = "\n".join(permission_lines)
     tracing_config = ""
@@ -134,21 +133,10 @@ def launch_dirk_cluster(
             "{0}-config-{1}".format(cluster_prefix, i),
         )
 
-        # Prepare the cert files: the server cert artifact contains files named
-        # {service_name}.crt, {service_name}.key, and ca.crt.
-        # We need to rename them to server.crt / server.key for the Dirk config.
-        # Use a run_sh to copy and rename into a clean artifact.
-        server_cert_artifact = _prepare_server_certs(
-            plan,
-            service_name,
-            cert_result.server_certs[service_name],
-            cert_result.ca_cert,
-        )
-
         # Assemble file mounts
         files = {
             DIRK_CONFIG_MOUNTPOINT: config_artifact,
-            DIRK_CERTS_MOUNTPOINT: server_cert_artifact,
+            DIRK_CERTS_MOUNTPOINT: cert_result.server_certs[service_name],
             DIRK_WALLETS_MOUNTPOINT: wallet_artifacts[i - 1],
         }
 
@@ -182,8 +170,8 @@ def _create_wallet_artifacts(plan, peer_count, cluster_prefix):
     base_dir_1 = "/tmp/wallets-1"
     script_lines.append("mkdir -p {0}".format(base_dir_1))
     script_lines.append(
-        "/app/ethdo --base-dir={0} wallet create --type=distributed --wallet=DistributedWallet".format(
-            base_dir_1
+        "/app/ethdo --base-dir={0} wallet create --type=distributed --wallet={1}".format(
+            base_dir_1, constants.DIRK_WALLET_NAME
         )
     )
 
@@ -210,36 +198,3 @@ def _create_wallet_artifacts(plan, peer_count, cluster_prefix):
     )
 
     return [result.files_artifacts[i] for i in range(peer_count)]
-
-
-def _prepare_server_certs(plan, service_name, server_cert_artifact, ca_cert_artifact):
-    """Rename server cert files to the canonical names Dirk expects.
-
-    The server_cert_artifact contains {service_name}.crt, {service_name}.key
-    (and ca.crt, .ext, .csr files). We copy the relevant ones to server.crt
-    and server.key, plus include the CA cert.
-    """
-    result = plan.run_sh(
-        name="prepare-certs-{0}".format(service_name),
-        description="Preparing TLS cert files for {0}".format(service_name),
-        run="\n".join(
-            [
-                "set -e",
-                "mkdir -p /out",
-                "cp /server-cert/{0}.crt /out/server.crt".format(service_name),
-                "cp /server-cert/{0}.key /out/server.key".format(service_name),
-                "cp /ca-cert/ca.crt /out/ca.crt",
-            ]
-        ),
-        image="alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
-        files={
-            "/server-cert": server_cert_artifact,
-            "/ca-cert": ca_cert_artifact,
-        },
-        store=[
-            StoreSpec(src="/out/", name="dirk-prepared-certs-{0}".format(service_name))
-        ],
-        wait=None,
-    )
-
-    return result.files_artifacts[0]

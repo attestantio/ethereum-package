@@ -5,6 +5,7 @@ genesis_constants = import_module(
 )
 
 sanity_check = import_module("./sanity_check.star")
+dirk_clusters = import_module("./dirk_clusters.star")
 
 DEFAULT_EL_IMAGES = {
     "geth": "ethereum/client-go:latest",
@@ -47,7 +48,7 @@ DEFAULT_VC_IMAGES = {
     "teku": "consensys/teku:latest",
     "grandine": "sifrai/grandine:stable",
     "vero": "ghcr.io/serenita-org/vero:latest",
-    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
+    "vouch": "attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -59,7 +60,6 @@ DEFAULT_VC_IMAGES_MINIMAL = {
     "teku": "ethpandaops/teku:master",
     "grandine": "ethpandaops/grandine:develop-minimal",
     "vero": "ghcr.io/serenita-org/vero:latest",
-    "vouch": "attestant/vouch:1.12.1@sha256:c71a64dc86a3f92e93d1f2a482aaa7f788a9266e4b14b38d9ecc06ff2b1619d2",
     "consensoor": "ethpandaops/consensoor:main",
 }
 
@@ -738,7 +738,7 @@ def input_parser(plan, input_args):
             + "your apache settings have been silently routed to nginx."
         )
 
-    return struct(
+    parsed = struct(
         participants=[
             struct(
                 el_type=participant["el_type"],
@@ -1290,6 +1290,9 @@ def input_parser(plan, input_args):
             env=result["trueblocks_params"]["env"],
         ),
     )
+    # Fail at parse time on invalid Vouch/Dirk layouts.
+    dirk_clusters.plan_clusters(parsed.participants)
+    return parsed
 
 
 def _validate_ere_gpu_config(zkvms):
@@ -1549,6 +1552,10 @@ def parse_network_params(plan, input_args):
             if cl_image == "" or vc_type != cl_type:
                 # If the validator client image is also empty, default to the image for the chosen CL client
                 if result["network_params"]["preset"] == "minimal":
+                    if vc_type == constants.VC_TYPE.vouch:
+                        fail(
+                            "Vouch has no default image for the minimal preset: releases before 1.14 decode SSZ with mainnet sizes only. Use preset: mainnet or set vc_image to a Vouch 1.14+ build."
+                        )
                     # Get devnet-modified images if network contains 'devnet'
                     effective_vc_images = get_devnet_modified_images(
                         result["network_params"]["network"], DEFAULT_VC_IMAGES_MINIMAL

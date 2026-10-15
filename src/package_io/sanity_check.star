@@ -704,12 +704,6 @@ def sanity_check(plan, input_args):
                             field
                         )
                     )
-        if input_args.get(
-            "tempo_mtls_enabled", False
-        ) and "tempo" not in input_args.get("additional_services", []):
-            fail(
-                "certmanager trace assertions require tempo when tempo mTLS is enabled"
-            )
 
     # Checks subcategories
     for subcategories in SUBCATEGORY_PARAMS.keys():

@@ -82,8 +82,14 @@ def generate_el_cl_genesis_data(
     genesis_run_cmd += " && ./entrypoint.sh all && mkdir /network-configs && mv /data/metadata/* /network-configs/ && mv /data/parsed /network-configs/parsed"
     if network_params.network == constants.NETWORK_NAME.kurtosis:
         # A private network must not inherit public bootnodes from the generator.
-        genesis_run_cmd += " && : > /network-configs/bootstrap_nodes.txt && test ! -s /network-configs/bootstrap_nodes.yaml"
-        # Genesis must hold exactly the preregistered keys plus any additional (DKG) validators.
+        genesis_run_cmd += " && : > /network-configs/bootstrap_nodes.txt && : > /network-configs/bootstrap_nodes.yaml"
+    # Genesis must hold exactly the preregistered keys plus any DKG validators.
+    # shortcut: skipped with additional_mnemonics, whose builder entries may sit
+    # outside the validator list; count them once that is confirmed.
+    if (
+        network_params.network == constants.NETWORK_NAME.kurtosis
+        and not _has_additional_mnemonics(network_params)
+    ):
         genesis_run_cmd += (
             " && extra=$(grep -c '^0x' /additional-validators/validators.txt 2>/dev/null || true)"
             + " && jq -e --argjson n $(( {0} + ${{extra:-0}} )) '.validators | length == $n'".format(
@@ -273,6 +279,13 @@ def new_additionsl_contracts_file_for_el_cl_genesis_data(
     return {
         "AdditionalPreloadedContracts": additional_contracts_json,
     }
+
+
+def _has_additional_mnemonics(network_params):
+    mnemonics = network_params.additional_mnemonics
+    if type(mnemonics) == "string":
+        mnemonics = json.decode(mnemonics)
+    return len(mnemonics) > 0
 
 
 def get_additional_mnemonics_json(
