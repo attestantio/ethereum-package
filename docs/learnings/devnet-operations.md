@@ -16,6 +16,10 @@ Justification is skipped while `current_epoch <= 1`. Epoch 2 is the first that c
 - `block-proposal-check` is the reliable way to confirm every client pair proposed.
 - Confirm finality directly: `curl <beacon>/eth/v1/beacon/states/head/finality_checkpoints`.
 
+## Devnet metadata
+
+An ethpandaops devnet's CL `config.yaml` lists only the final blob schedule entry per epoch, so steps that share an epoch collapse into one. Its EL `genesis.json` lists every BPO step with target, max, base-fee fraction and activation time; read blob settings from there.
+
 ## Local images
 
 Kurtosis uses locally tagged images without a registry. The arm64 override for amd64-only Vouch and Dirk images, and the registry workaround for digest-only fixtures, are in `.agents/skills/verify-ethereum-package/fixtures/README.md`.
