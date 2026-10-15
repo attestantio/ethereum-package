@@ -15,4 +15,4 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 |-----------|------|
 | No implicit string concatenation in Starlark (`"foo" "bar"`) | Starlark parser, `kurtosis lint` |
 | Nimbus needs 12s slots on the mainnet preset and 6s on minimal | `input_parser.star` |
-| Generated fixtures match their layouts | `generate-fixture.py --check` in per-PR CI |
+| Generated fixtures match their layouts | `generate-fixture.py --check` in the fixture-tooling workflow |
