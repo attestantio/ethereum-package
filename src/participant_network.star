@@ -35,6 +35,15 @@ blobber_launcher = import_module("./blobber/blobber_launcher.star")
 cl_context_module = import_module("./cl/cl_context.star")
 bootnodoor_launcher = import_module("./bootnodoor/bootnodoor_launcher.star")
 
+dirk_launcher = import_module("./dirk/dirk_launcher.star")
+dirk_certs = import_module("./dirk/certs.star")
+dirk_dkg = import_module("./dirk/dkg.star")
+dirk_context_module = import_module("./dirk/dirk_context.star")
+dirk_clusters = import_module("./package_io/dirk_clusters.star")
+
+# Client certificate identity Vouch presents to Dirk.
+VOUCH_CLIENT_NAME = "vouch-client"
+
 
 def launch_participant_network(
     plan,
@@ -53,12 +62,117 @@ def launch_participant_network(
     otel_otlp_grpc_url,
     otel_otlp_http_traces_url,
     backend,
+    tempo_mtls_enabled=False,
+    tempo_client_tls=None,
 ):
     network_id = network_params.network_id
     num_participants = len(args_with_right_defaults.participants)
     total_number_of_validator_keys = 0
     latest_block = ""
     global_other_index = 0
+
+    # Phase 0: create Dirk clusters and their DKG validators before genesis.
+    dkg_validators_artifact = None
+    cluster_plan = args_with_right_defaults.dirk_cluster_plan
+    # In Tempo mTLS mode only Vouch, which holds a client certificate, traces.
+    plain_tempo_url = tempo_otlp_grpc_url if not tempo_mtls_enabled else None
+    participant_cluster_ids = cluster_plan.cluster_ids
+    cluster_dirk_contexts = {}
+    cluster_validator_artifacts = []
+    certmanager_cluster_info = {}
+    for cluster in cluster_plan.clusters:
+        prefix = dirk_clusters.cluster_prefix(cluster.id)
+        service_names = [
+            "{0}-{1}".format(prefix, i) for i in range(1, cluster.peer_count + 1)
+        ]
+        cert_result = dirk_certs.generate_certs(
+            plan, service_names, VOUCH_CLIENT_NAME, cluster.id
+        )
+        dirk_launcher.launch_dirk_cluster(
+            plan,
+            dirk_image=cluster.image,
+            service_names=service_names,
+            cert_result=cert_result,
+            vouch_client_name=VOUCH_CLIENT_NAME,
+            tolerations=global_tolerations,
+            node_selectors=global_node_selectors,
+            tempo_otlp_grpc_url=plain_tempo_url,
+            cluster_prefix=prefix,
+        )
+        dirk_dkg.run_dkg_ceremony(
+            plan,
+            dirk_service_names=service_names,
+            cert_result=cert_result,
+            validator_count=cluster.validator_count,
+            signing_threshold=cluster.threshold,
+            peer_count=cluster.peer_count,
+            account_start=cluster.account_start,
+            cluster_id=cluster.id,
+        )
+        cluster_validator_artifacts.append(
+            dirk_dkg.extract_dkg_validators_file(
+                plan,
+                dirk_service_names=service_names,
+                cert_result=cert_result,
+                validator_count=cluster.validator_count,
+                account_start=cluster.account_start,
+                cluster_id=cluster.id,
+            )
+        )
+        cluster_dirk_contexts[cluster.id] = dirk_context_module.new_dirk_context(
+            endpoints=[
+                "{0}:{1}".format(name, dirk_launcher.DIRK_GRPC_PORT_NUM)
+                for name in service_names
+            ],
+            vouch_certs_artifact=cert_result.vouch_certs,
+            accounts=[
+                "{0}/{1}".format(constants.DIRK_WALLET_NAME, account)
+                for account in range(
+                    cluster.account_start,
+                    cluster.account_start + cluster.validator_count,
+                )
+            ],
+        )
+        if args_with_right_defaults.certmanager_test_enabled:
+            certmanager_cluster_info[cluster.id] = struct(
+                dirk_service_names=service_names,
+                vouch_service_names=[],
+                active_vouch_service_names=[],
+                vouch_certs_artifact=cert_result.vouch_certs,
+                vouch_metrics_port=vc_shared.VALIDATOR_CLIENT_METRICS_PORT_NUM,
+            )
+
+    if len(cluster_validator_artifacts) == 1:
+        dkg_validators_artifact = cluster_validator_artifacts[0]
+    elif len(cluster_validator_artifacts) > 1:
+        files = {}
+        merge = [
+            "set -e",
+            "mkdir -p /out",
+            'echo "# DKG validator pubkeys for genesis" > /out/validators.txt',
+        ]
+        for index, artifact in enumerate(cluster_validator_artifacts):
+            mount = "/cluster-{0}".format(index)
+            files[mount] = artifact
+            merge.append(
+                "tail -n +2 {0}/validators.txt >> /out/validators.txt".format(mount)
+            )
+        merge.extend(
+            [
+                "test $(grep -c '^0x' /out/validators.txt) -eq $(grep '^0x' /out/validators.txt | cut -d: -f1 | sort -u | wc -l)"
+            ]
+        )
+        dkg_validators_artifact = plan.run_sh(
+            name="merge-dkg-validators",
+            description="Merging DKG validators",
+            run="\n".join(merge),
+            image=constants.ALPINE_IMAGE,
+            files=files,
+            store=[StoreSpec(src="/out/", name="dkg-validators-file")],
+            wait=None,
+        ).files_artifacts[0]
+
+    # Phase 1: Genesis generation
     if (
         network_params.network == constants.NETWORK_NAME.kurtosis
         or constants.NETWORK_NAME.shadowfork in network_params.network
@@ -120,6 +234,7 @@ def launch_participant_network(
             frames_enabled,
             global_tolerations,
             global_node_selectors,
+            additional_validators_artifact=dkg_validators_artifact,
         )
     elif network_params.network.startswith(constants.NETWORK_NAME.remote_enclave):
         # We are syncing from another running kurtosis enclave
@@ -274,7 +389,7 @@ def launch_participant_network(
         global_node_selectors,
         global_tolerations,
         persistent,
-        tempo_otlp_grpc_url,
+        plain_tempo_url,
         otel_otlp_grpc_url,
         otel_otlp_http_traces_url,
         num_participants,
@@ -372,6 +487,7 @@ def launch_participant_network(
 
     vc_service_configs = {}
     vc_service_info = {}
+
     for index, participant in enumerate(args_with_right_defaults.participants):
         el_type = participant.el_type
         cl_type = participant.cl_type
@@ -497,7 +613,7 @@ def launch_participant_network(
         )
 
         vc_keystores = None
-        if participant.validator_count != 0:
+        if shared_utils.has_mnemonic_keys(participant):
             vc_keystores = preregistered_validator_keys_for_nodes[index]
 
         vc_context = None
@@ -603,9 +719,14 @@ def launch_participant_network(
             port_publisher=args_with_right_defaults.port_publisher,
             vc_index=current_vc_index,
             extra_files_artifacts=extra_files_artifacts,
-            tempo_otlp_grpc_url=tempo_otlp_grpc_url,
+            # Only Vouch holds a Tempo client certificate.
+            tempo_otlp_grpc_url=tempo_otlp_grpc_url
+            if vc_type == constants.VC_TYPE.vouch
+            else plain_tempo_url,
+            tempo_client_tls=tempo_client_tls,
             otel_otlp_grpc_url=otel_otlp_grpc_url,
             vc_binary_artifact=vc_binary_artifact,
+            dirk_context=cluster_dirk_contexts.get(participant_cluster_ids.get(index)),
         )
         if vc_service_config == None:
             continue
@@ -615,6 +736,7 @@ def launch_participant_network(
             "client_name": vc_type,
             "participant_index": index,
             "participant": participant,
+            "cluster_id": participant_cluster_ids.get(index),
         }
         current_vc_index += 1
 
@@ -715,6 +837,21 @@ def launch_participant_network(
 
         all_participants.append(participant_entry)
 
+    if args_with_right_defaults.certmanager_test_enabled:
+        for service_name, info in vc_service_info.items():
+            if info["client_name"] != constants.VC_TYPE.vouch:
+                continue
+            cluster_id = info["cluster_id"]
+            if cluster_id not in certmanager_cluster_info:
+                continue
+            certmanager_cluster_info[cluster_id].vouch_service_names.append(
+                service_name
+            )
+            if info["participant"].validator_count > 0:
+                certmanager_cluster_info[cluster_id].active_vouch_service_names.append(
+                    service_name
+                )
+
     return (
         all_participants,
         final_genesis_timestamp,
@@ -723,4 +860,5 @@ def launch_participant_network(
         network_id,
         el_cl_data.osaka_time,
         el_cl_data.shadowfork_block_height,
+        certmanager_cluster_info,
     )

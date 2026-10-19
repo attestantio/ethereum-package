@@ -1,0 +1,30 @@
+participants:
+  - el_type: geth
+    el_image: ethereum/client-go:v1.17.8@sha256:abf3605177f8bdcfce436985a8054cca4ae59256323a4ffb72c56c04f3d1fadd
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse:v8.2.3@sha256:03356184ba534c4723d373398906d99452ef957297381bbbaece0e218910fa40
+    supernode: true
+    validator_count: 1
+  - el_type: geth
+    el_image: ethereum/client-go:v1.17.8@sha256:abf3605177f8bdcfce436985a8054cca4ae59256323a4ffb72c56c04f3d1fadd
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse:v8.2.3@sha256:03356184ba534c4723d373398906d99452ef957297381bbbaece0e218910fa40
+    vc_type: vouch
+    vc_image: attestant/vouch:1.13.1@sha256:b0c20471db638922b0670b0c375033b25fc408dc7d38131b8fd4a4f35cd60d3b
+    use_separate_vc: true
+    vouch_package_strategies: false
+    validator_count: 1
+    dirk_image: attestant/dirk:1.2.1@sha256:be451a000be3d36b11ca63668b77ef063386a349775bcc41a5e2be5cfef09fc0
+network_params:
+  # Vouch releases before 1.14 decode SSZ with mainnet sizes only.
+  preset: mainnet
+  seconds_per_slot: 6
+additional_services:
+  - tempo
+  - prometheus_grafana
+prometheus_params:
+  image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
+ethereum_genesis_generator_params:
+  image: ethpandaops/ethereum-genesis-generator:6.2.1@sha256:15bb557cbd6d29fc1b7516a7147326a8c8d3af54f3c3ac534ec8772f6e875256
+grafana_params:
+  image: grafana/grafana:11.5.2@sha256:8b37a2f028f164ce7b9889e1765b9d6ee23fec80f871d156fbf436d6198d32b7

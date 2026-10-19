@@ -77,6 +77,15 @@ PARTICIPANT_CATEGORIES = {
         "vc_beacon_node_indices",
         "checkpoint_sync_enabled",
         "skip_start",
+        "dirk_image",
+        "dirk_peer_count",
+        "dirk_signing_threshold",
+        "dirk_cluster_id",
+        "vouch_multiinstance_style",
+        "vouch_multiinstance_attester_delay",
+        "vouch_multiinstance_proposer_delay",
+        "vouch_package_strategies",
+        "vouch_strategies_yaml",
     ],
 }
 
@@ -226,6 +235,15 @@ SUBCATEGORY_PARAMS = {
         "genesis_delay",
         "genesis_time",
         "genesis_gaslimit",
+        "genesis_fork_version",
+        "altair_fork_version",
+        "bellatrix_fork_version",
+        "capella_fork_version",
+        "deneb_fork_version",
+        "electra_fork_version",
+        "fulu_fork_version",
+        "gloas_fork_version",
+        "heze_fork_version",
         "max_per_epoch_activation_churn_limit",
         "churn_limit_quotient",
         "confirmation_byzantine_threshold",
@@ -256,7 +274,9 @@ SUBCATEGORY_PARAMS = {
         "force_snapshot_sync",
         "shadowfork_block_height",
         "samples_per_slot",
+        "data_column_sidecar_subnet_count",
         "custody_requirement",
+        "validator_custody_requirement",
         "max_blobs_per_block_electra",
         "target_blobs_per_block_electra",
         "max_request_blocks_deneb",
@@ -527,6 +547,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "parallel_keystore_generation": "",
     "disable_peer_scoring": "",
     "persistent": "",
+    "tempo_mtls_enabled": "",
     "mev_type": "",
     "xatu_sentry_enabled": "",
     "apache_port": "",
@@ -534,6 +555,7 @@ ADDITIONAL_CATEGORY_PARAMS = {
     "global_tolerations": "",
     "global_node_selectors": "",
     "keymanager_enabled": "",
+    "certmanager_test_enabled": "",
     "checkpoint_sync_enabled": "",
     "checkpoint_sync_url": "",
 }
@@ -656,6 +678,11 @@ def sanity_check(plan, input_args):
                         additional_services, ADDITIONAL_SERVICES_PARAMS
                     )
                 )
+
+    if input_args.get("tempo_mtls_enabled", False) and "tempo" not in input_args.get(
+        "additional_services", []
+    ):
+        fail("tempo_mtls_enabled requires additional_services to include tempo")
 
     # Checks subcategories
     for subcategories in SUBCATEGORY_PARAMS.keys():
