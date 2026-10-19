@@ -43,8 +43,7 @@ Each file starts with an H1 and one paragraph on what the fixture proves, then f
 ## Fixtures
 
 - [Vouch/Dirk smoke](./vouch-dirk-smoke.md): one Vouch with a 2-of-3 Dirk cluster and a DKG validator in genesis. Runs in CI.
-- [Vouch/Dirk multi-instance](./vouch-dirk-multiinstance.md): active Vouch with static-delay multi-instance config, plus input validation.
-- [Vouch/Dirk clusters](./vouch-dirk-clusters.md): two Dirk clusters, an active/passive pair on cluster A, plus input validation.
+- [Vouch/Dirk multi-instance](./vouch-dirk-multiinstance.md): an active/passive Vouch pair on Dirk cluster A, an independent cluster B, plus input validation.
 - [Tempo plain](./tempo-plain.md): Vouch and Dirk traces in plain Tempo.
 - [Tempo mTLS](./tempo-mtls.md): Vouch traces in Tempo over mTLS.
 - [Vouch/Dirk certmanager](./vouch-dirk-certmanager.md): two 3-of-5 Dirk clusters, certificate identity and validity metrics.
