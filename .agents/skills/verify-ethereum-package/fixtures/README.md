@@ -30,11 +30,12 @@ A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the la
 
 Every recipe runs these steps around its own:
 
-1. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
-2. **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
-3. The recipe's own steps.
-4. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
-5. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
+1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. Copy every `differs` line, and a newer source commit or devnet, into SETUP-before. It never blocks the run: refreshing pins is a separate change with its own signed-off run. Needs PyYAML and docker; takes about a minute.
+2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+3. **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+4. The recipe's own steps.
+5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
+6. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Fixture entry contract
 

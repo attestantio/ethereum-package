@@ -29,6 +29,30 @@ class ResolveTest(unittest.TestCase):
         self.assertTrue(res.on_docker_hub("ethpandaops/geth"))
         self.assertFalse(res.on_docker_hub("ghcr.io/paradigmxyz/reth"))
 
+    def test_fixture_clients(self):
+        fixture = {"participants": [
+            {"el_type": "geth", "cl_type": "prysm"},
+            {"el_type": "besu", "cl_type": "nimbus", "vc_type": "vouch"},
+            {"el_type": "reth", "cl_type": "teku", "vc_type": "teku"},
+        ]}
+        self.assertEqual(res.fixture_clients(fixture),
+                         ["besu", "dirk", "geth", "nimbus", "prysm", "prysm_validator", "reth", "teku", "vouch"])
+
+    def test_newer_devnets(self):
+        names = ["devnet-8", "devnet-9", "devnet-12", "msf-2", "devnet-x"]
+        self.assertEqual(res.newer_devnets(names, "devnet-8"), ["devnet-9", "devnet-12"])
+        self.assertEqual(res.newer_devnets(names, "devnet-12"), [])
+
+    def test_check_compares_with_pins_and_reads_source(self):
+        text = ("# Generated from o/r@abc1234 devnet-8 by .github/fixtures/generate-fixture.py.\n"
+                "participants:\n  - el_type: geth\n    el_image: e/geth:1@sha256:a\n    cl_type: teku\n")
+        self.assertEqual(res.SOURCE_HEADER.search(text).groups(), ("o/r", "abc1234", "devnet-8"))
+        lines = {"geth": "geth: e/geth:1@sha256:a  # why", "teku": "teku: e/teku:2@sha256:b  # why"}
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertFalse(res.compare_pins(res.yaml.safe_load(text), lambda name: lines[name]))
+        self.assertIn("same     geth:", out.getvalue())
+        self.assertIn("differs  teku:", out.getvalue())
+
     def test_one_failing_client_does_not_stop_the_run(self):
         def resolve(name):
             if name == "bad":
