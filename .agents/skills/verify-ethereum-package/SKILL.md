@@ -15,7 +15,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 1. **Run directory.** Pick a run name `<fixture>-<yyyymmdd><letter>` and set `run_dir="${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}/$run"`. Evidence lives there, outside every repo.
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
-3. **Setup before.** Run `setup-before.sh <args-file> "$run_dir"`, then replace its Topology placeholder with the participants, client per role, validator split and any Vouch/Dirk layout. Put any edited args file in `$run_dir` and launch that copy. On Apple Silicon, apply the arm64 image override from [`fixtures/README.md`](fixtures/README.md) this way.
+3. **Setup before.** Run `setup-before.sh <args-file> "$run_dir"`, then replace its Topology placeholder with the participants, client per role, validator split and any Vouch/Dirk layout. Run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) and record what it reports. Put any edited args file in `$run_dir` and launch that copy. On Apple Silicon, apply the arm64 image override from [`fixtures/README.md`](fixtures/README.md) this way.
 4. **Run.** `kurtosis run . --enclave "$enclave" --args-file <args-file> > "$run_dir/launch.log" 2>&1`. Record the full UUID from `kurtosis enclave inspect --full-uuids "$enclave"` in `$run_dir/resources.md` straight away, even if the run failed part-way. A failed `inspect` does not prove the enclave is absent.
 5. **Ready.** The fixture file's `Ready when:` line holds. Ready means usable: running containers or a sync flag are not enough.
 
