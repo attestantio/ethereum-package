@@ -18,7 +18,7 @@ Preconditions: a fresh enclave name.
 
 Ready when: the launch exits 0, `doctor.sh` passes and two epochs have passed.
 
-Health epoch: 5.
+Health epoch: 5, the first epoch at which `devnet-health.sh` judges finality.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 
