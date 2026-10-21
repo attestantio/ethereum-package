@@ -14,6 +14,8 @@
       generated next-fork fixture resolves at its source repo's HEAD and lists
       newer devnets; any other fixture resolves latest stable releases. A
       prerelease pin newer than the latest release is marked `prerelease`.
+      Exits 1 when a client could not be resolved; its `error` line says why
+      (an HTTP 429 is a registry rate limit).
 
 Output is one line per client: `<client>: <image ref>  # <why> <platforms>`.
 Needs docker (buildx imagetools) and access to GitHub and Docker Hub. Set
@@ -178,22 +180,25 @@ PRERELEASE = re.compile(r":v?[0-9][^@]*-(alpha|beta|rc)")
 
 def compare_pins(fixture, resolve):
     """Print each client as same, differs or prerelease, with its pins; True if any client failed."""
-    failed = False
+    counts = {"same": 0, "differs": 0, "prerelease": 0, "errors": 0}
     for name, pinned in sorted(fixture_pins(fixture).items()):
         try:
             line = resolve(name)
         except Exception as error:  # report the rest even if one client fails
-            failed = True
+            counts["errors"] += 1
             print(f"error      {name}: {error}")
             continue
         ref = line.split(": ", 1)[1].split("  #", 1)[0]
         if ref in pinned:
+            counts["same"] += 1
             print(f"same       {line}")
             continue
         # A prerelease pin is ahead of the latest release on purpose.
-        status = "prerelease" if "latest release" in line and any(PRERELEASE.search(p) for p in pinned) else "differs   "
-        print(f"{status} {line}\n           pinned {', '.join(sorted(pinned)) or 'package default'}")
-    return failed
+        status = "prerelease" if "latest release" in line and any(PRERELEASE.search(p) for p in pinned) else "differs"
+        counts[status] += 1
+        print(f"{status:<10} {line}\n           pinned {', '.join(sorted(pinned)) or 'package default'}")
+    print("summary: " + ", ".join(f"{n} {k}" for k, n in counts.items()))
+    return counts["errors"] > 0
 
 
 def check(path):
