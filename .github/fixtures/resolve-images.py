@@ -10,10 +10,10 @@
       not at the devnet commit. Record the date with the pins.
   resolve-images.py check <fixture>
       Resolve the fixture's clients again and mark each as `same` or
-      `differs` from its pins. A generated next-fork fixture resolves at its
-      source repo's HEAD and lists newer devnets; any other fixture resolves
-      latest stable releases. A pin chosen on purpose, such as a prerelease,
-      differs by design.
+      `differs` from its pins, printing the pin under each difference. A
+      generated next-fork fixture resolves at its source repo's HEAD and lists
+      newer devnets; any other fixture resolves latest stable releases. A
+      prerelease pin newer than the latest release is marked `prerelease`.
 
 Output is one line per client: `<client>: <image ref>  # <why> <platforms>`.
 Needs docker (buildx imagetools) and access to GitHub and Docker Hub. Set
@@ -146,19 +146,22 @@ def advertised_images(repo, commit, devnet):
         return yaml.safe_load(response)["default_ethereum_client_images"]
 
 
-def fixture_clients(fixture):
-    """Resolver names of the clients a fixture runs."""
-    names = set()
+def fixture_pins(fixture):
+    """Pinned image refs per resolver client name; an empty set means the package default."""
+    pins = {}
     for participant in fixture.get("participants", []):
-        names.update(filter(None, (participant.get("el_type"), participant.get("cl_type"))))
-        vc = participant.get("vc_type") or participant.get("cl_type")
-        if vc == "prysm":
-            names.add("prysm_validator")
-        elif vc == "vouch":
-            names.update(("vouch", "dirk"))
+        el, cl = participant.get("el_type"), participant.get("cl_type")
+        vc = participant.get("vc_type") or cl
+        for name, key in ((el, "el_image"), (cl, "cl_image")):
+            if name:
+                pins.setdefault(name, set()).update(filter(None, [participant.get(key)]))
+        if vc == "vouch":
+            pins.setdefault("vouch", set()).update(filter(None, [participant.get("vc_image")]))
+            pins.setdefault("dirk", set()).update(filter(None, [participant.get("dirk_image")]))
         elif vc:
-            names.add(vc)
-    return sorted(names)
+            name = "prysm_validator" if vc == "prysm" else vc
+            pins.setdefault(name, set()).update(filter(None, [participant.get("vc_image")]))
+    return pins
 
 
 def newer_devnets(names, devnet):
@@ -170,20 +173,26 @@ def newer_devnets(names, devnet):
     return sorted(newer, key=lambda n: int(n.rpartition("-")[2]))
 
 
+PRERELEASE = re.compile(r":v?[0-9][^@]*-(alpha|beta|rc)")
+
+
 def compare_pins(fixture, resolve):
-    """Print each client's resolved line marked same or differs; True if any client failed."""
-    pinned = {value for participant in fixture.get("participants", [])
-              for key, value in participant.items() if key.endswith("_image")}
+    """Print each client as same, differs or prerelease, with its pins; True if any client failed."""
     failed = False
-    for name in fixture_clients(fixture):
+    for name, pinned in sorted(fixture_pins(fixture).items()):
         try:
             line = resolve(name)
         except Exception as error:  # report the rest even if one client fails
             failed = True
-            print(f"error    {name}: {error}")
+            print(f"error      {name}: {error}")
             continue
         ref = line.split(": ", 1)[1].split("  #", 1)[0]
-        print(f"{'same    ' if ref in pinned else 'differs '} {line}")
+        if ref in pinned:
+            print(f"same       {line}")
+            continue
+        # A prerelease pin is ahead of the latest release on purpose.
+        status = "prerelease" if "latest release" in line and any(PRERELEASE.search(p) for p in pinned) else "differs   "
+        print(f"{status} {line}\n           pinned {', '.join(sorted(pinned)) or 'package default'}")
     return failed
 
 

@@ -3,6 +3,7 @@
 # Usage: setup-before.sh <args-file> <evidence-dir>
 # Run from the ethereum-package checkout that will be launched. The agent adds a topology
 # summary (participants, validator split, Vouch/Dirk layout) under "Topology" afterwards.
+# Pass the args file you will launch. A freshness.txt already in <evidence-dir> is embedded.
 set -euo pipefail
 if [[ $# -ne 2 ]]; then
   echo "usage: $0 <args-file> <evidence-dir>" >&2
@@ -12,6 +13,11 @@ args="$1"
 dir="$2"
 mkdir -p "$dir"
 out="$dir/SETUP-before.md"
+# Another run's evidence must never be overwritten.
+if [[ -e "$out" ]]; then
+  echo "$out exists; pick a new run name" >&2
+  exit 1
+fi
 {
   echo "# SETUP-before: $(basename "$dir")"
   echo
@@ -37,6 +43,14 @@ out="$dir/SETUP-before.md"
   grep -nE '^\s*-?\s*[a-z_]*image:\s*\S' "$args" | sed -E 's/^([0-9]+):\s*-?\s*([a-z_]*image):\s*"?([^" ]+)"?.*/| \2 (line \1) | `\3` |/' ||
     echo "| all | package defaults |"
   echo
+  if [[ -f "$dir/freshness.txt" ]]; then
+    echo "## Freshness"
+    echo
+    echo '```text'
+    cat "$dir/freshness.txt"
+    echo '```'
+    echo
+  fi
   echo "## Host"
   echo
   echo "- Docker: $(docker info --format '{{.NCPU}} CPUs, {{.MemTotal}} bytes memory, {{.Architecture}}')"

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Read-only check: is this enclave worth driving?
-# Usage: doctor.sh <enclave>
+# Usage: doctor.sh <enclave> [epoch]
+# With an epoch, it also prints when that epoch starts, e.g. the recipe's health epoch.
 # Exit 0 when every check passes, 1 otherwise, 2 when the enclave is not found.
 set -uo pipefail
-if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <enclave>" >&2
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "usage: $0 <enclave> [epoch]" >&2
   exit 2
 fi
 enclave="$1"
+target_epoch="${2:-}"
 source "$(dirname "$0")/lib.sh"
 rc=0
 ok()  { printf 'PASS %s\n' "$*"; }
@@ -34,6 +36,7 @@ for cl in $cls; do
   if genesis="$(curl -fsS -m 5 "$url/eth/v1/beacon/genesis" | jq -r .data.genesis_time)" &&
      sps="$(curl -fsS -m 5 "$url/eth/v1/config/spec" | jq -r .data.SECONDS_PER_SLOT)" &&
      head="$(curl -fsS -m 5 "$url/eth/v1/beacon/headers/head" | jq -r .data.header.message.slot)"; then
+    timing="$genesis $sps $(curl -fsS -m 5 "$url/eth/v1/config/spec" | jq -r .data.SLOTS_PER_EPOCH)"
     now=$(date +%s)
     if (( now < genesis )); then ok "$cl waiting for genesis in $((genesis - now))s"; continue; fi
     expected=$(( (now - genesis) / sps ))
@@ -42,4 +45,13 @@ for cl in $cls; do
     bad "$cl beacon API not reachable at ${url:-<no http port>}"
   fi
 done
+
+# Timing, from the last beacon node that answered. Before genesis the epoch is negative.
+if [[ -n "${timing:-}" ]]; then
+  read -r genesis sps spe <<<"$timing"
+  epoch_s=$(( sps * spe ))
+  at() { date -u -r "$1" +%FT%TZ 2>/dev/null || date -u -d "@$1" +%FT%TZ; }
+  printf 'INFO genesis %s, %ss slots, %ss epochs, wall-clock epoch %s\n' "$(at "$genesis")" "$sps" "$epoch_s" $(( ($(date +%s) - genesis) / epoch_s ))
+  [[ -n "$target_epoch" ]] && printf 'INFO epoch %s starts at %s\n' "$target_epoch" "$(at $(( genesis + target_epoch * epoch_s )))"
+fi
 exit "$rc"

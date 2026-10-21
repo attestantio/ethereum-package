@@ -19,7 +19,7 @@ Preconditions: a fresh enclave name and at least 12 GB of free Docker memory (10
 
 Ready when: the launch exits 0. The package runs its certmanager checks after first finality, about 30 minutes in, so exit 0 already proves `cm-identity`, `cm-metrics` and `cm-signing`.
 
-Health epoch: 5.
+Health epoch: 5, the first epoch at which `devnet-health.sh` judges finality.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 

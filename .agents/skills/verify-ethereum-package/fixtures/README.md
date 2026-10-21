@@ -7,7 +7,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 - Docker and the Kurtosis engine are running, and `kurtosis enclave ls` is saved to the run directory.
 - The checkout is the one under test; `setup-before.sh` records its commit and uncommitted changes.
 - Vouch fixtures use the mainnet preset (why: `docs/learnings/vouch-dirk.md`). With 6s slots an epoch takes 3.2 minutes; with 12s, 6.4.
-- **amd64-only images.** `resolve-images.py` prints each image's platforms. If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build one from the same release tag (`docker build -t local/<image>:<version>-<commit> .` in a checkout at the tag), copy the fixture to `$run_dir/args.yaml`, replace the refs with the local tags, and launch the copy. Record the substitution in SETUP-before. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
+- **amd64-only images.** If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build one from the pinned release with `scripts/build-arm64.sh <vouch|dirk> <version> "$run"`. It prints the new ref and image ID; record both in `resources.md`. Then write the copy: `sed -E -e "s#attestant/vouch:[^ ]+#$vouch_ref#" -e "s#attestant/dirk:[^ ]+#$dirk_ref#" "$args" > "$run_dir/args.yaml"`, and launch it. Remove the images by ID at cleanup. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
 - Vouch 1.13.1 logs many `job already exists` errors at the first epoch boundary. It is a known Vouch scheduler bug, fixed after that release; note it in the report, not as a fixture failure.
 
 ## Driving conventions
@@ -20,6 +20,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 
 - Proof is every step of the fixture's recipe passing, plus `devnet-health.sh` and both setup records.
 - A step whose precondition never happened is blocked, with the reason, not passed.
+- A run shorter than the health epoch is a smoke result, not proof. Report each check that passed early as `pass at epoch N`, and each check that needs a later epoch as `blocked: needs epoch M`.
 - Every result names the fixture, the commit and the run directory.
 
 ## Generated fixtures
@@ -30,16 +31,16 @@ A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the la
 
 Every recipe runs these steps around its own:
 
-1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. Copy every `differs` line, and a newer source commit or devnet, into SETUP-before. It never blocks the run: refreshing pins is a separate change with its own signed-off run. Needs PyYAML and docker; takes about a minute.
-2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
-3. **Doctor.** `doctor.sh "$enclave"`. Pass: exit 0. Fail: any FAIL line.
+1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) uv run --with pyyaml python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. Each client is `same`, `differs` (with its pin below) or `prerelease` (pinned ahead of the latest release on purpose). `setup-before.sh` embeds the file. It never blocks the run: refreshing pins is a separate change with its own signed-off run. Takes about a minute.
+2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time and when the health epoch starts. Fail: any FAIL line.
 4. The recipe's own steps.
 5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
 6. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Fixture entry contract
 
-Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section states `Preconditions:`, `Ready when:` and `Health epoch:`, then one bullet per fixture-specific step naming the command, what passes and what fails.
+Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section states `Preconditions:`, `Ready when:` and `Health epoch:` (the first epoch at which every check is valid, with the reason), then one bullet per fixture-specific step naming the command, what passes and what fails.
 
 ## Fixtures
 

@@ -9,15 +9,17 @@ The package's user surface is a YAML args file passed to `kurtosis run`, the enc
 
 Launch mechanics (config fields, `kurtosis` commands, images) are in the upstream `kurtosis-ethereum` skill in this repo (`.agents/skills/kurtosis-ethereum`). This skill adds ownership, readiness, proof and evidence. Pick the fixture from [`fixtures/README.md`](fixtures/README.md) first; every check maps to a recipe there.
 
-Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4.3 or newer, `git`, `jq`, `curl`, `shasum`, `docker` and `kurtosis`; `review-page.sh` also needs `uv`.
+Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4.3 or newer, `git`, `jq`, `curl`, `shasum`, `docker`, `kurtosis` and `uv`; the Freshness step also needs `gh` for a GitHub token.
 
 ## Launch
 
-1. **Run directory.** Pick a run name `<fixture>-<yyyymmdd><letter>` and set `run_dir="${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}/$run"`. Evidence lives there, outside every repo.
+1. **Run directory.** Pick a run name `<fixture>-<yyyymmdd><letter>`, using the first letter whose directory does not exist, set `run_dir="${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}/$run"` and create it with `mkdir "$run_dir"`. If `mkdir` fails, the name is taken: never reuse another run's directory. Evidence lives there, outside every repo.
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
-3. **Setup before.** Run `setup-before.sh <args-file> "$run_dir"`, then replace its Topology placeholder with the participants, client per role, validator split and any Vouch/Dirk layout. Run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) and record what it reports. Put any edited args file in `$run_dir` and launch that copy. On Apple Silicon, apply the arm64 image override from [`fixtures/README.md`](fixtures/README.md) this way.
-4. **Run.** `kurtosis run . --enclave "$enclave" --args-file <args-file> > "$run_dir/launch.log" 2>&1`. Record the full UUID from `kurtosis enclave inspect --full-uuids "$enclave"` in `$run_dir/resources.md` straight away, even if the run failed part-way. A failed `inspect` does not prove the enclave is absent.
-5. **Ready.** The fixture file's `Ready when:` line holds. Ready means usable: running containers or a sync flag are not enough.
+3. **Freshness.** Run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) on the committed fixture.
+4. **Args file.** Launch the committed fixture unless an image must change. On an arm64 host with amd64-only images, follow the arm64 override in [`fixtures/README.md`](fixtures/README.md); it writes `$run_dir/args.yaml`, and you launch that copy.
+5. **Setup before.** Run `setup-before.sh <args-file you will launch> "$run_dir"`. It embeds `freshness.txt`. Replace its Topology placeholder with the participants, client per role, validator split and any Vouch/Dirk layout.
+6. **Run.** `kurtosis run . --enclave "$enclave" --args-file <args-file> > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. A launch takes 4 to 15 minutes, mostly image pulls. Genesis is set during the launch, so the chain may already be running when it returns. Record the full UUID from `kurtosis enclave inspect --full-uuids "$enclave"` in `$run_dir/resources.md` straight away, even if the run failed part-way. A failed `inspect` does not prove the enclave is absent.
+7. **Ready.** The fixture file's `Ready when:` line holds. Ready means usable: running containers or a sync flag are not enough.
 
 `launch.log` contains the network's prefunded private keys. Keep it in the run directory and redact it before sharing. `kurtosis run --dry-run` can still create an enclave; record and clean it like any other.
 
@@ -27,7 +29,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 .agents/skills/verify-ethereum-package/scripts/doctor.sh "$enclave"
 ```
 
-Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-` and `dirk-` container and `tempo` is running, and every beacon node's head is within 2 slots of the wall clock. Exit 0 means worth driving. Run it first, and again whenever something looks off.
+Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-` and `dirk-` container and `tempo` is running, and every beacon node's head is within 2 slots of the wall clock. It also prints genesis time and the wall-clock epoch; pass the recipe's health epoch as a second argument to print when it starts. Exit 0 means worth driving. Run it first, and again whenever something looks off.
 
 For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client off the chain, stalled or not finalizing while the majority is healthy, and 2 means the check could not run. A healthy majority does not verify a diverged client: record each one.
 
