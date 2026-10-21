@@ -13,7 +13,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 ## Launch
 
-1. **Run directory.** Pick a run name `<fixture>-<yyyymmdd><letter>`, using the first letter whose directory does not exist, set `run_dir="${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}/$run"` and create it with `mkdir "$run_dir"`. If `mkdir` fails, the name is taken: never reuse another run's directory. Evidence lives there, outside every repo.
+1. **Run directory.** `run_dir="$(new-run.sh <fixture>)" && run="$(basename "$run_dir")"`, as its own command; go on only if it succeeded. It creates `<fixture>-<yyyymmdd><letter>` under `${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}` with the first free letter. Never write into a directory you did not create. Evidence lives there, outside every repo.
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
 3. **Freshness.** Run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) on the committed fixture.
 4. **Args file.** Launch the committed fixture unless an image must change. On an arm64 host with amd64-only images, follow the arm64 override in [`fixtures/README.md`](fixtures/README.md); it writes `$run_dir/args.yaml`, and you launch that copy.

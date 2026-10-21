@@ -61,6 +61,7 @@ class ResolveTest(unittest.TestCase):
         self.assertIn("differs    teku: e/teku:2@sha256:b  # why\n           pinned e/teku:1@sha256:c", printed)
         self.assertIn("prerelease vouch:", printed)
         self.assertIn("differs    dirk:", printed)
+        self.assertIn("summary: 1 same, 2 differs, 1 prerelease, 0 errors", printed)
 
     def test_one_failing_client_does_not_stop_the_run(self):
         def resolve(name):

@@ -13,7 +13,8 @@ version="${2#v}"
 run="$3"
 src="$(mktemp -d)"
 trap 'rm -rf "$src"' EXIT
-git -c advice.detachedHead=false clone -q --depth 1 --branch "v$version" "https://github.com/attestantio/$client" "$src"
+# A shallow clone of an annotated tag warns "is not a commit"; it is harmless.
+git -c advice.detachedHead=false clone -q --depth 1 --branch "v$version" "https://github.com/attestantio/$client" "$src" 2> >(grep -v "is not a commit" >&2)
 ref="local/$client:$version-$(git -C "$src" rev-parse --short=7 HEAD)-$run"
 if docker image inspect "$ref" >/dev/null 2>&1; then
   echo "$ref already exists; pick a new run name" >&2
