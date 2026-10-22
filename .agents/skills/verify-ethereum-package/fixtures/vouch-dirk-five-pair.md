@@ -19,7 +19,7 @@ Preconditions: a fresh enclave name and about 12 GB of free Docker memory (six E
 
 Ready when: the launch exits 0 and `doctor.sh` passes.
 
-Health epoch: 7. Gloas starts at epoch 2, and the first full Gloas epoch (3) finalizes around epoch 5, the first epoch at which `devnet-health.sh` judges finality. Epoch 7 leaves two epochs of margin. Before it, `devnet-health.sh "$enclave" 7` exits 4: a smoke result.
+Health epoch: 5. Gloas starts at epoch 2, and the first full Gloas epoch (3) finalizes around epoch 5, the first epoch at which `devnet-health.sh` judges finality. Before it, `devnet-health.sh "$enclave" 5` exits 4: a smoke result.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 
