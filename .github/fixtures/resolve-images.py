@@ -16,12 +16,17 @@
       prerelease pin newer than the latest release is marked `prerelease`.
       Exits 1 when a client could not be resolved; its `error` line says why
       (an HTTP 429 is a registry rate limit).
+  resolve-images.py latest <fixture> <out>
+      As check, then write a copy of the fixture to <out> with every `differs`
+      pin replaced by its resolved image. `same`, `prerelease` and unresolved
+      pins stay. The copy says it is not the pinned fixture.
 
 Output is one line per client: `<client>: <image ref>  # <why> <platforms>`.
 Needs docker (buildx imagetools) and access to GitHub and Docker Hub. Set
 GITHUB_TOKEN to avoid GitHub's unauthenticated rate limit.
 """
 
+import datetime
 import json
 import os
 import re
@@ -178,8 +183,9 @@ def newer_devnets(names, devnet):
 PRERELEASE = re.compile(r":v?[0-9][^@]*-(alpha|beta|rc)")
 
 
-def compare_pins(fixture, resolve):
-    """Print each client as same, differs or prerelease, with its pins; True if any client failed."""
+def compare_pins(fixture, resolve, updates=None):
+    """Print each client as same, differs or prerelease, with its pins; True if any client failed.
+    With an updates dict, map each differing pin to its resolved ref."""
     counts = {"same": 0, "differs": 0, "prerelease": 0, "errors": 0}
     for name, pinned in sorted(fixture_pins(fixture).items()):
         try:
@@ -196,18 +202,27 @@ def compare_pins(fixture, resolve):
         # A prerelease pin is ahead of the latest release on purpose.
         status = "prerelease" if "latest release" in line and any(PRERELEASE.search(p) for p in pinned) else "differs"
         counts[status] += 1
+        if status == "differs" and updates is not None:
+            updates.update({pin: ref for pin in pinned})
         print(f"{status:<10} {line}\n           pinned {', '.join(sorted(pinned)) or 'package default'}")
     print("summary: " + ", ".join(f"{n} {k}" for k, n in counts.items()))
     return counts["errors"] > 0
 
 
-def check(path):
+def latest_text(text, updates):
+    """The fixture with every differing pin replaced, under a header saying so."""
+    for old, new in updates.items():
+        text = text.replace(old, new)
+    return f"# Latest builds resolved {datetime.date.today()} by resolve-images.py latest; not the pinned fixture.\n" + text
+
+
+def check(path, updates=None):
     text = open(path).read()
     fixture = yaml.safe_load(text)
     match = SOURCE_HEADER.search(text)
     if not match:
         print("source: latest stable releases")
-        return compare_pins(fixture, lambda name: release_line(name, "latest release"))
+        return compare_pins(fixture, lambda name: release_line(name, "latest release"), updates)
     repo, commit, devnet = match.groups()
     head = get_json(f"https://api.github.com/repos/{repo}/commits/HEAD")["sha"]
     print(f"source: {repo}@{commit[:7]} {devnet}; HEAD {head[:7]}{'' if head == commit else ' is newer'}")
@@ -219,7 +234,7 @@ def check(path):
         if name in advertised:
             return next_fork_line(name, advertised[name])
         return release_line(name, "latest release; not advertised by the devnet")
-    return compare_pins(fixture, resolve)
+    return compare_pins(fixture, resolve, updates)
 
 
 def resolve_all(names, resolve):
@@ -242,6 +257,14 @@ def main(argv):
     if len(argv) >= 4 and argv[0] == "next-fork":
         advertised = advertised_images(*argv[1:4])
         if resolve_all(argv[4:] or advertised, lambda name: next_fork_line(name, advertised[name])):
+            sys.exit(1)
+        return
+    if len(argv) == 3 and argv[0] == "latest":
+        updates = {}
+        failed = check(argv[1], updates)
+        with open(argv[2], "w") as out:
+            out.write(latest_text(open(argv[1]).read(), updates))
+        if failed:
             sys.exit(1)
         return
     if len(argv) == 2 and argv[0] == "check":
