@@ -13,7 +13,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 
 ## Driving conventions
 
-- Launch from the repo root. `$args` is `.github/tests/<fixture>.yaml`, or its `$run_dir/args.yaml` copy when an image override applies.
+- Launch from the repo root. `$args` is `.github/tests/<fixture>.yaml`, `$run_dir/latest.yaml` in latest mode, or the `$run_dir/args.yaml` copy when an arm64 override applies on top.
 - One enclave at a time. Clean it up before launching the next.
 - Service names come from the live enclave: `el-<n>-<el>-<cl>`, `cl-<n>-<cl>-<el>`, `vc-<n>-<el>-<cl>-<vc>`, `dirk-<cluster>-<n>` (or `dirk-<n>`), `tempo`.
 
@@ -32,7 +32,7 @@ A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the la
 
 Every recipe runs these steps around its own:
 
-1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) uv run --with pyyaml python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. Each client is `same`, `differs` (with its pin below) or `prerelease` (pinned ahead of the latest release on purpose). `setup-before.sh` embeds the file. It ends with a summary line. Exit 1 means a client could not be resolved, and its `error` line says why; a 429 is the Docker Hub limit above. It never blocks the run: refreshing pins is a separate change with its own signed-off run. In REPORT.md, give the summary line as an informational row. Takes about a minute.
+1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) uv run --with pyyaml python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. In latest mode use `... resolve-images.py latest .github/tests/<fixture>.yaml "$run_dir/latest.yaml" > "$run_dir/freshness.txt"` and set `args="$run_dir/latest.yaml"`: the copy takes each `differs` client's current build and keeps `same` and `prerelease` pins. Say the mode in SETUP-before and REPORT.md. If a latest build cannot run the fixture's fork rules, record it as a client-compatibility finding and rerun in pinned mode. Each client is `same`, `differs` (with its pin below) or `prerelease` (pinned ahead of the latest release on purpose). `setup-before.sh` embeds the file. It ends with a summary line. Exit 1 means a client could not be resolved, and its `error` line says why; a 429 is the Docker Hub limit above. It never blocks the run: refreshing pins is a separate change with its own signed-off run. In REPORT.md, give the summary line as an informational row. Takes about a minute.
 2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
 3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time and when the health epoch starts. Fail: any FAIL line.
 4. The recipe's own steps.

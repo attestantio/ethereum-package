@@ -63,6 +63,20 @@ class ResolveTest(unittest.TestCase):
         self.assertIn("differs    dirk:", printed)
         self.assertIn("summary: 1 same, 2 differs, 1 prerelease, 0 errors", printed)
 
+    def test_latest_replaces_only_differing_pins(self):
+        fixture = {"participants": [
+            {"el_type": "geth", "el_image": "e/geth:1@sha256:a", "cl_type": "teku", "cl_image": "e/teku:1@sha256:c",
+             "vc_type": "vouch", "vc_image": "a/vouch:2.0.0-alpha.1@sha256:d"}]}
+        lines = {"geth": "geth: e/geth:1@sha256:a  # why", "teku": "teku: e/teku:2@sha256:b  # why",
+                 "vouch": "vouch: a/vouch:1.9.0@sha256:f  # latest release", "dirk": "dirk: a/dirk:2@sha256:g  # why"}
+        updates = {}
+        with contextlib.redirect_stdout(io.StringIO()):
+            res.compare_pins(fixture, lambda name: lines[name], updates)
+        self.assertEqual(updates, {"e/teku:1@sha256:c": "e/teku:2@sha256:b"})  # same and prerelease pins stay
+        text = "x: e/teku:1@sha256:c\n"
+        self.assertTrue(res.latest_text(text, updates).endswith("x: e/teku:2@sha256:b\n"))
+        self.assertIn("not the pinned fixture", res.latest_text(text, updates).splitlines()[0])
+
     def test_one_failing_client_does_not_stop_the_run(self):
         def resolve(name):
             if name == "bad":
