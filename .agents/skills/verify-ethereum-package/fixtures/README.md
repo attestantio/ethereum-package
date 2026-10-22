@@ -8,7 +8,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 - **Docker Hub pulls.** A launch pulls up to about 20 images, and `build-arm64.sh` pulls base images. Anonymous pulls are limited per IP (100 an hour when last checked), and a 429 error means that limit was hit. Check what is left before a launch: `t=$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token); curl -sI -H "Authorization: Bearer $t" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest | grep -i ratelimit-remaining`. If it is low, ask the human to `docker login`, or wait for the window to reset. Do not retry in a loop.
 - The checkout is the one under test; `setup-before.sh` records its commit and uncommitted changes.
 - Vouch fixtures use the mainnet preset (why: `docs/learnings/vouch-dirk.md`). With 6s slots an epoch takes 3.2 minutes; with 12s, 6.4.
-- **amd64-only images.** If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build one from the pinned release with `scripts/build-arm64.sh <vouch|dirk> <version> "$run"`. It prints the new ref and image ID; record both in `resources.md`. Then write the copy: `sed -E -e "s#attestant/vouch:[^ ]+#$vouch_ref#" -e "s#attestant/dirk:[^ ]+#$dirk_ref#" "$args" > "$run_dir/args.yaml"`, and launch it. Remove the images by ID at cleanup. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
+- **amd64-only images.** If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build each one at the release the fixture pins: `eval "$(build-arm64.sh vouch "$args" "$run")"` and the same for `dirk`. Each call sets `vouch_ref` and `vouch_id` (or `dirk_…`) and records the image in `resources.md`. Then write the copy: `sed -E -e "s#attestant/vouch:[^ ]+#$vouch_ref#" -e "s#attestant/dirk:[^ ]+#$dirk_ref#" "$args" > "$run_dir/args.yaml"`, and launch it. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
 - Vouch 1.13.1 logs many `job already exists` errors at the first epoch boundary. It is a known Vouch scheduler bug, fixed after that release; note it in the report, not as a fixture failure.
 
 ## Driving conventions
@@ -36,7 +36,7 @@ Every recipe runs these steps around its own:
 2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
 3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time and when the health epoch starts. Fail: any FAIL line.
 4. The recipe's own steps.
-5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" > "$run_dir/health.txt"`. Pass: exit 0. Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
+5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" <health epoch> > "$run_dir/health.txt"`. Pass: exit 0. Smoke only: 4 (healthy so far, but run before the health epoch). Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
 6. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
 
 ## Fixture entry contract

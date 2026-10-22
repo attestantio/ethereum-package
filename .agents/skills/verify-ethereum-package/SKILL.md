@@ -13,7 +13,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 ## Launch
 
-1. **Run directory.** `run_dir="$(new-run.sh <fixture>)" && run="$(basename "$run_dir")"`, as its own command; go on only if it succeeded. It creates `<fixture>-<yyyymmdd><letter>` under `${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}` with the first free letter. Never write into a directory you did not create. Evidence lives there, outside every repo.
+1. **Run directory.** `run_dir="$(new-run.sh <fixture>)" && run="$(basename "$run_dir")" && enclave="$run"`, as its own command; go on only if it succeeded. The enclave takes the run's name. It creates `<fixture>-<yyyymmdd><letter>` under `${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}` with the first free letter. Never write into a directory you did not create. Evidence lives there, outside every repo.
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
 3. **Freshness.** Run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) on the committed fixture.
 4. **Args file.** Launch the committed fixture unless an image must change. On an arm64 host with amd64-only images, follow the arm64 override in [`fixtures/README.md`](fixtures/README.md); it writes `$run_dir/args.yaml`, and you launch that copy.
@@ -31,7 +31,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-` and `dirk-` container and `tempo` is running, and every beacon node's head is within 2 slots of the wall clock. It also prints genesis time and the wall-clock epoch; pass the recipe's health epoch as a second argument to print when it starts. Exit 0 means worth driving. Run it first, and again whenever something looks off.
 
-For chain health beyond the head, run `devnet-health.sh "$enclave"`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client off the chain, stalled or not finalizing while the majority is healthy, and 2 means the check could not run. A healthy majority does not verify a diverged client: record each one.
+For chain health beyond the head, run `devnet-health.sh "$enclave" <health epoch>`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client off the chain, stalled or not finalizing while the majority is healthy, 4 is healthy so far but before the health epoch (a smoke result, not proof), and 2 means the check could not run. A healthy majority does not verify a diverged client: record each one.
 
 ## Drive
 
@@ -55,7 +55,7 @@ Everything goes in `$run_dir`: `SETUP-before.md`, `launch.log`, assertion and he
 
 ## Cleanup
 
-Remove only what this run created, by the full UUID in `resources.md`: `kurtosis enclave rm -f <full-uuid>`. Never use `kurtosis clean`, Docker prune or name-prefix deletion; they reach enclaves other runs own. Mark removed IDs in `resources.md`. The run directory stays.
+Remove only what this run created, by the full ID in `resources.md`: `kurtosis enclave rm -f <full-uuid>` for the enclave, `docker rmi <image-id>` for each image `build-arm64.sh` built. Never use `kurtosis clean`, Docker prune or name-prefix deletion; they reach resources other runs own. Mark removed IDs in `resources.md`. The run directory stays.
 
 ## Helpers
 

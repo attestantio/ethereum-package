@@ -3,17 +3,19 @@
 # agreement, finality and EL heights. Running containers or is_syncing=false
 # are not health.
 #
-# Usage: devnet-health.sh <enclave>
+# Usage: devnet-health.sh <enclave> [health-epoch]
 # Exit 0 HEALTHY: every client is on one chain, close to the wall clock, and finalizing.
 # Exit 1 UNHEALTHY: no majority chain, or it is stalled, not justifying or not finalizing.
 # Exit 2: the check could not run (bad arguments, no enclave, no beacon API).
 # Exit 3 DIVERGED: the majority chain is healthy but some client is off it, stalled or not finalizing.
+# Exit 4 INCOMPLETE: healthy so far, but the wall clock is before [health-epoch], so this is a smoke result.
 set -uo pipefail
-if [[ $# -ne 1 || -z "$1" ]]; then
-  echo "usage: $0 <enclave>" >&2
+if [[ $# -lt 1 || $# -gt 2 || -z "$1" || ! "${2:-0}" =~ ^[0-9]+$ ]]; then
+  echo "usage: $0 <enclave> [health-epoch]" >&2
   exit 2
 fi
 enclave="$1"
+health_epoch="${2:-0}"
 source "$(dirname "$0")/lib.sh"
 
 FAIL=0
@@ -133,7 +135,7 @@ if (( chain )); then
     (( max_fin > 0 )) && ok "finalized epoch $max_fin at wall-clock epoch $wall_epoch" || bad "nothing finalized by wall-clock epoch $wall_epoch"
     (( wall_epoch - max_fin > 6 )) && bad "finality $(( wall_epoch - max_fin )) epochs behind the wall clock"
   else
-    warn "wall-clock epoch $wall_epoch; first finality is expected around epoch 4"
+    warn "wall-clock epoch $wall_epoch; finality is judged from epoch 5"
   fi
 else
   note "  skipped: there is no majority chain"
@@ -171,4 +173,5 @@ fi
 note ""
 if (( FAIL )); then note "RESULT: UNHEALTHY"; exit 1; fi
 if [[ -n "$DIVERGED" ]]; then note "RESULT: DIVERGED:$DIVERGED"; exit 3; fi
+if (( wall_epoch < health_epoch )); then note "RESULT: INCOMPLETE: wall-clock epoch $wall_epoch is before health epoch $health_epoch"; exit 4; fi
 note "RESULT: HEALTHY"
