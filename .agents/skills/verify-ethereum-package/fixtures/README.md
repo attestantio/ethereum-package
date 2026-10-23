@@ -9,7 +9,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 - The checkout is the one under test; `setup-before.sh` records its commit and uncommitted changes.
 - Vouch fixtures use the mainnet preset (why: `docs/learnings/vouch-dirk.md`). With 6s slots an epoch takes 3.2 minutes; with 12s, 6.4.
 - **amd64-only images.** If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build each one at the release the fixture pins: `eval "$(build-arm64.sh vouch "$args" "$run")"` and the same for `dirk`. Each call sets `vouch_ref` and `vouch_id` (or `dirk_…`) and records the image in `resources.md`. Then write the copy: `sed -E -e "s#attestant/vouch:[^ ]+#$vouch_ref#" -e "s#attestant/dirk:[^ ]+#$dirk_ref#" "$args" > "$run_dir/args.yaml"`, and launch it. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
-- Vouch 1.13.1 logs many `job already exists` errors at the first epoch boundary. It is a known Vouch scheduler bug, fixed after that release; note it in the report, not as a fixture failure.
+- Vouch releases up to at least 1.14.0-alpha.2 can log thousands of `job already exists` errors at the epoch-1 boundary, together with the epoch-0 fork handlers ("At Altair fork epoch") running again. Its epoch ticker re-runs epoch 0 when its first timer fires a few milliseconds early, and then skips epoch 1's duties. It depends on timing, so one run can show it and the next not. The fix is attestantio/vouch#464. Note it in the report, not as a fixture failure, and don't read it as caused by client image changes.
 
 ## Driving conventions
 
