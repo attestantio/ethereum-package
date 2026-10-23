@@ -1,0 +1,52 @@
+# ethereum-package fixture map
+
+This directory is the maintained source for verifying the package's fixtures. Read this index, then use the matching fixture file as the recipe. Harness rules are in [`../SKILL.md`](../SKILL.md).
+
+## Baseline preconditions
+
+- Docker and the Kurtosis engine are running, and `kurtosis enclave ls` is saved to the run directory.
+- **Docker Hub pulls.** A launch pulls up to about 20 images, and `build-arm64.sh` pulls base images. Anonymous pulls are limited per IP (100 an hour when last checked), and a 429 error means that limit was hit. Check what is left before a launch: `t=$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token); curl -sI -H "Authorization: Bearer $t" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest | grep -i ratelimit-remaining`. If it is low, ask the human to `docker login`, or wait for the window to reset. Do not retry in a loop.
+- The checkout is the one under test; `setup-before.sh` records its commit and uncommitted changes.
+- Vouch fixtures use the mainnet preset (why: `docs/learnings/vouch-dirk.md`). With 6s slots an epoch takes 3.2 minutes; with 12s, 6.4.
+- **amd64-only images.** If the host is arm64 and an image has no `linux/arm64` build (today: `attestant/vouch`, `attestant/dirk`), build each one at the release the fixture pins: `eval "$(build-arm64.sh vouch "$args" "$run")"` and the same for `dirk`. Each call sets `vouch_ref` and `vouch_id` (or `dirk_…`) and records the image in `resources.md`. Then write the copy: `sed -E -e "s#attestant/vouch:[^ ]+#$vouch_ref#" -e "s#attestant/dirk:[^ ]+#$dirk_ref#" "$args" > "$run_dir/args.yaml"`, and launch it. Emulation is not a substitute: Vouch under emulation trips its deadlock detector. For digest-only fixtures, see the certmanager file.
+- Vouch releases up to at least 1.14.0-alpha.2 can log thousands of `job already exists` errors at the epoch-1 boundary, together with the epoch-0 fork handlers ("At Altair fork epoch") running again. Its epoch ticker re-runs epoch 0 when its first timer fires a few milliseconds early, and then skips epoch 1's duties. It depends on timing, so one run can show it and the next not. The fix is attestantio/vouch#464. Note it in the report, not as a fixture failure, and don't read it as caused by client image changes.
+
+## Driving conventions
+
+- Launch from the repo root. `$args` is `.github/tests/<fixture>.yaml`, `$run_dir/latest.yaml` in latest mode, or the `$run_dir/args.yaml` copy when an arm64 override applies on top.
+- One enclave at a time. Clean it up before launching the next.
+- Service names come from the live enclave: `el-<n>-<el>-<cl>`, `cl-<n>-<cl>-<el>`, `vc-<n>-<el>-<cl>-<vc>`, `dirk-<cluster>-<n>` (or `dirk-<n>`), `tempo`.
+
+## Proof and skip reporting
+
+- Proof is every step of the fixture's recipe passing, plus `devnet-health.sh` and both setup records.
+- A step whose precondition never happened is blocked, with the reason, not passed.
+- A run shorter than the health epoch is a smoke result, not proof. Report each check that passed early as `pass at epoch N`, and each check that needs a later epoch as `blocked: needs epoch M`.
+- Every result names the fixture, the commit and the run directory.
+
+## Generated fixtures
+
+A fixture with a layout in `.github/fixtures/layouts/` is generated. Edit the layout, then run `python3 .github/fixtures/generate-fixture.py`; CI fails on a hand-edited fixture. `python3 .github/fixtures/resolve-images.py mainnet` or `... next-fork <repo> <commit> <devnet>` prints digest-pinned images to paste into the layout. Verify a generated fixture like any other.
+
+## Common steps
+
+Every recipe runs these steps around its own:
+
+1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) uv run --with pyyaml python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. In latest mode use `... resolve-images.py latest .github/tests/<fixture>.yaml "$run_dir/latest.yaml" > "$run_dir/freshness.txt"` and set `args="$run_dir/latest.yaml"`: the copy takes each `differs` client's current build and keeps `same` and `prerelease` pins. Say the mode in SETUP-before and REPORT.md. If a latest build cannot run the fixture's fork rules, record it as a client-compatibility finding and rerun in pinned mode. Each client is `same`, `differs` (with its pin below) or `prerelease` (pinned ahead of the latest release on purpose). `setup-before.sh` embeds the file. It ends with a summary line. Exit 1 means a client could not be resolved, and its `error` line says why; a 429 is the Docker Hub limit above. It never blocks the run: refreshing pins is a separate change with its own signed-off run. In REPORT.md, give the summary line as an informational row. Takes about a minute.
+2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
+3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time and when the health epoch starts. Fail: any FAIL line.
+4. The recipe's own steps.
+5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" <health epoch> > "$run_dir/health.txt"`. Pass: exit 0. Smoke only: 4 (healthy so far, but run before the health epoch). Fail: 1 (no healthy majority chain), 3 (a client off the chain, stalled or not finalizing); 2 means the check could not run.
+6. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
+
+## Fixture entry contract
+
+Each file starts with an H1 and one paragraph on what the fixture proves, then four H2s in this order: `Sub-features`, `How to get to it (user POV)`, `Driving it with kurtosis`, and `Gotchas`. The driving section states `Preconditions:`, `Ready when:` and `Health epoch:` (the first epoch at which every check is valid, with the reason), then one bullet per fixture-specific step naming the command, what passes and what fails.
+
+## Fixtures
+
+- [Vouch/Dirk smoke](./vouch-dirk-smoke.md): one Vouch with a 2-of-3 Dirk cluster and a DKG validator in genesis. Runs in CI.
+- [Vouch/Dirk multi-instance](./vouch-dirk-multiinstance.md): an active/passive Vouch pair on Dirk cluster A, an independent cluster B, plus input validation.
+- [Tempo plain](./tempo-plain.md): Vouch and Dirk traces in plain Tempo.
+- [Tempo mTLS](./tempo-mtls.md): Vouch traces in Tempo over mTLS.
+- [Vouch/Dirk certmanager](./vouch-dirk-certmanager.md): two 3-of-5 Dirk clusters, certificate identity and validity metrics.
