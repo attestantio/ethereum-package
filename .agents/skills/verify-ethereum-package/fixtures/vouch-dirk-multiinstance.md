@@ -6,7 +6,7 @@ A mainnet-preset network with 6s slots and two independent Dirk clusters: cluste
 
 - `mi-active-passive`: active and passive Vouch on cluster A serve the same single account, with longer delays on the passive one. Static-delay instances start inactive until arbitration promotes them.
 - `mi-cluster-b`: an independent cluster B with its own Dirk peers and validator.
-- `mi-validation`: invalid style, duplicate, missing and invalid cluster IDs, a passive Vouch without a cluster, a bad threshold, Dirk fields on a passive Vouch, a shared cluster without static-delay, delays without static-delay, Vouch fields on a non-Vouch participant, a non-kurtosis network, `use_separate_vc: false` and strategies YAML with package strategies off all fail at parse time with the expected message.
+- `mi-validation`: invalid style, duplicate, missing and invalid cluster IDs, a passive Vouch without a cluster, a bad threshold, Dirk fields on a passive Vouch, a shared cluster without static-delay, delays without static-delay, Vouch fields on a non-Vouch participant, a non-kurtosis network, `use_separate_vc: false`, an unknown strategy name, mistyped strategy settings or values, a number where a mapping or a duration with a unit belongs, a non-boolean `vouch_package_strategies` and `combinedmajority` without a threshold of 1 or more all fail at parse time with the expected message.
 
 ## How to get to it (user POV)
 
