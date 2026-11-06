@@ -9,8 +9,23 @@ fi
 enclave=$1
 kurtosis service inspect "$enclave" vc-2-geth-lighthouse-vouch
 kurtosis enclave inspect "$enclave" | grep -A 2 -F 'vc-2-geth-lighthouse-vouch' | grep -q 'RUNNING'
+config=$(kurtosis service exec "$enclave" vc-2-geth-lighthouse-vouch 'cat /config/vouch.yml')
 # Vouch has one beacon node, so the package's majority threshold drops to 1.
-kurtosis service exec "$enclave" vc-2-geth-lighthouse-vouch 'cat /config/vouch.yml' | grep -q 'threshold: 1'
+grep -q 'threshold: 1' <<<"$config"
+# vouch_strategies changes the proposal timeout and keeps the package's style.
+proposal=$(grep -A 2 '^  beaconblockproposal:' <<<"$config")
+grep -qF "style: 'best'" <<<"$proposal"
+grep -qF "timeout: '1800ms'" <<<"$proposal"
+# Vouch runs the strategy the override selected, not only renders it. The log store can trail
+# the launch by a few seconds, so read the logs until the line shows up.
+for _ in $(seq 30); do
+  logs=$(kurtosis service logs -a "$enclave" vc-2-geth-lighthouse-vouch || true)
+  if grep -qF 'Starting first beacon block root strategy' <<<"$logs"; then
+    break
+  fi
+  sleep 2
+done
+grep -qF 'Starting first beacon block root strategy' <<<"$logs"
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT

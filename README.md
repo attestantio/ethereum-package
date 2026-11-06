@@ -604,8 +604,26 @@ participants:
     # lists more. The majority threshold is 2, or 1 with a single beacon node.
     # Set to false to run with Vouch's own default strategies. Defaults to true
     vouch_package_strategies: true
-    # Strategies YAML that replaces the package's strategies. Defaults to ""
-    vouch_strategies_yaml: ""
+    # Strategy settings merged over the package's strategies (or over Vouch's own
+    # defaults when vouch_package_strategies is false), one entry per strategy,
+    # named as in Vouch's configuration, for example attestationdata,
+    # beaconblockproposal or submitter. A name Vouch does not read is rejected, and
+    # the error lists the valid ones. Nested settings merge key by key, so an entry
+    # changes only the keys it names; a package setting can be changed but not
+    # removed. A mapping stays a mapping and a single value stays a single value.
+    # Durations need a unit, for example 2s or 1800ms.
+    # Vouch reads only combinedmajority.threshold for the combinedmajority style, so
+    # it must be set here. It cannot exceed the number of beacon nodes Vouch reads
+    # (see vc_beacon_node_indices), or Vouch exits at start.
+    # payloadattestationdata needs Vouch 1.14 or later; older Vouch ignores it.
+    # Example:
+    #   vouch_strategies:
+    #     attestationdata:
+    #       style: combinedmajority
+    #       combinedmajority:
+    #         threshold: 2
+    # Defaults to {}
+    vouch_strategies: {}
 
     # Whether to use a remote signer instead of the vc directly handling keys
     # Note Lighthouse VC does not support this flag

@@ -2,6 +2,7 @@ constants = import_module("../package_io/constants.star")
 input_parser = import_module("../package_io/input_parser.star")
 shared_utils = import_module("../shared_utils/shared_utils.star")
 vc_shared = import_module("./vc_shared.star")
+vouch_strategies = import_module("./vouch_strategies.star")
 
 
 VERBOSITY_LEVELS = {
@@ -16,32 +17,6 @@ VOUCH_CONFIG_MOUNT_DIRPATH_ON_SERVICE = "/config"
 VOUCH_CONFIG_FILENAME = "vouch.yml"
 VOUCH_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/certs"
 VOUCH_TEMPO_CERTS_MOUNT_DIRPATH_ON_SERVICE = "/tempo-certs"
-
-VOUCH_STRATEGIES_YAML = """strategies:
-  aggregateattestation:
-    style: 'best'
-  attestationdata:
-    style: 'majority'
-    majority:
-      threshold: {threshold}
-    timeout: '2s'
-  beaconblockheader:
-    style: 'first'
-  beaconblockproposal:
-    style: 'best'
-    timeout: '1.5s'
-  beaconblockroot:
-    style: 'majority'
-  duties:
-    style: 'first'
-  signedbeaconblock:
-    style: 'first'
-  synccommitteecontribution:
-    style: 'best'
-    timeout: '1s'
-submitter:
-  style: 'multinode'
-"""
 
 
 def get_config(
@@ -96,17 +71,11 @@ def get_config(
         ["      - '{0}'\n".format(account) for account in dirk_context.accounts]
     )
 
-    if not participant.vouch_package_strategies:
-        strategies_yaml = ""
-    elif participant.vouch_strategies_yaml != "":
-        strategies_yaml = participant.vouch_strategies_yaml
-        if not strategies_yaml.endswith("\n"):
-            strategies_yaml += "\n"
-    else:
-        # Vouch refuses a threshold above its beacon node count.
-        strategies_yaml = VOUCH_STRATEGIES_YAML.format(
-            threshold=min(2, len(beacon_http_urls))
-        )
+    strategies_yaml = vouch_strategies.render(
+        beacon_nodes=len(beacon_http_urls),
+        package_strategies=participant.vouch_package_strategies,
+        overrides=participant.vouch_strategies,
+    )
 
     multiinstance_yaml = ""
     if participant.vouch_multiinstance_style != "":

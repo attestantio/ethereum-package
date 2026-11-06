@@ -6,6 +6,7 @@ genesis_constants = import_module(
 
 sanity_check = import_module("./sanity_check.star")
 dirk_clusters = import_module("./dirk_clusters.star")
+vouch_strategies = import_module("../vc/vouch_strategies.star")
 
 DEFAULT_EL_IMAGES = {
     "geth": "ethereum/client-go:latest",
@@ -62,7 +63,7 @@ VOUCH_FIELDS = [
     "vouch_multiinstance_attester_delay",
     "vouch_multiinstance_proposer_delay",
     "vouch_package_strategies",
-    "vouch_strategies_yaml",
+    "vouch_strategies",
 ]
 
 DEFAULT_VC_IMAGES_MINIMAL = {
@@ -943,7 +944,7 @@ def input_parser(plan, input_args):
                 "vouch_multiinstance_proposer_delay"
             ],
             vouch_package_strategies=participant["vouch_package_strategies"],
-            vouch_strategies_yaml=participant["vouch_strategies_yaml"],
+            vouch_strategies=participant["vouch_strategies"],
             validator_count=participant["validator_count"],
             tolerations=participant["tolerations"],
             node_selectors=participant["node_selectors"],
@@ -1790,13 +1791,9 @@ def parse_network_params(plan, input_args):
                 )
             if not participant["use_separate_vc"]:
                 fail("Vouch runs as a separate VC; remove use_separate_vc: false")
-            if (
-                not participant["vouch_package_strategies"]
-                and participant["vouch_strategies_yaml"] != ""
-            ):
-                fail(
-                    "vouch_strategies_yaml replaces the package strategies; it has no effect with vouch_package_strategies: false"
-                )
+            if type(participant["vouch_package_strategies"]) != "bool":
+                fail("vouch_package_strategies must be true or false")
+            vouch_strategies.validate(participant["vouch_strategies"])
             if participant["vouch_multiinstance_style"] == "":
                 delays_set = [
                     field
@@ -2306,7 +2303,7 @@ def default_participant():
         "vouch_multiinstance_attester_delay": "0s",
         "vouch_multiinstance_proposer_delay": "0s",
         "vouch_package_strategies": True,
-        "vouch_strategies_yaml": "",
+        "vouch_strategies": {},
         "validator_count": None,
         "node_selectors": {},
         "tolerations": [],
