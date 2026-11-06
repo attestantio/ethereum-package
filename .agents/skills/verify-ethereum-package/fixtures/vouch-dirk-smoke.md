@@ -6,6 +6,7 @@ A mainnet-preset network with 6s slots where one Vouch signs through a 2-of-3 Di
 
 - `smoke-genesis`: genesis holds the native validator and the DKG validator, and nothing else.
 - `smoke-vouch`: the Vouch service runs.
+- `smoke-strategies`: `vouch_strategies` changes the proposal timeout and keeps the package's `best` style, and Vouch runs the `first` block root strategy the override selects.
 - `smoke-chain`: the chain finalizes, which needs Vouch's half of the stake.
 
 ## How to get to it (user POV)
@@ -23,7 +24,7 @@ Health epoch: 5, the first epoch at which `devnet-health.sh` judges finality.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 
-- **Assertions.** `.github/tests/assert-vouch-dirk-smoke.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Pass: exit 0 (DKG pubkey in genesis, exactly 2 genesis validators, finality within 20 minutes). Fail: any other exit.
+- **Assertions.** `.github/tests/assert-vouch-dirk-smoke.sh "$enclave" > "$run_dir/assert.txt" 2>&1`. Pass: exit 0 (majority threshold 1, the proposal timeout override with the package style kept, Vouch's `first` block root start line, DKG pubkey in genesis, exactly 2 genesis validators, finality within 20 minutes). Fail: any other exit.
 
 ## Gotchas
 
