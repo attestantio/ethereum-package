@@ -16,6 +16,10 @@ OTLP_HTTP_PORT_NUMBER = 4318
 
 TEMPO_CONFIG_FILENAME = "tempo.yaml"
 TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE = "/etc/tempo"
+TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE = "/etc/tempo/tls"
+TEMPO_SERVER_CERT_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/server.crt"
+TEMPO_SERVER_KEY_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/server.key"
+TEMPO_CLIENT_CA_PATH = TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE + "/ca.crt"
 
 USED_PORTS = {
     HTTP_PORT_ID: shared_utils.new_port_spec(
@@ -47,6 +51,8 @@ def launch_tempo(
     tempo_params,
     port_publisher,
     index,
+    tempo_mtls_enabled=False,
+    tempo_server_tls=None,
 ):
     tolerations = shared_utils.get_tolerations(global_tolerations=global_tolerations)
 
@@ -54,6 +60,7 @@ def launch_tempo(
         plan,
         config_template,
         tempo_params,
+        tempo_mtls_enabled,
     )
 
     public_ports = shared_utils.get_additional_service_standard_public_port(
@@ -69,6 +76,7 @@ def launch_tempo(
         tolerations,
         tempo_params,
         public_ports,
+        tempo_server_tls,
     )
 
     service = plan.add_service(SERVICE_NAME, config)
@@ -92,8 +100,9 @@ def get_tempo_config_dir_artifact_uuid(
     plan,
     config_template,
     tempo_params,
+    tempo_mtls_enabled=False,
 ):
-    template_data = new_config_template_data(tempo_params)
+    template_data = new_config_template_data(tempo_params, tempo_mtls_enabled)
 
     template_and_data = shared_utils.new_template_and_data(
         config_template, template_data
@@ -115,19 +124,27 @@ def get_config(
     tolerations,
     tempo_params,
     public_ports,
+    tls_artifact=None,
 ):
     config_file_path = shared_utils.path_join(
         TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE,
         TEMPO_CONFIG_FILENAME,
     )
 
+    files = {
+        TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
+    }
+    ports = dict(USED_PORTS)
+    if tls_artifact != None:
+        files[TEMPO_TLS_MOUNT_DIRPATH_ON_SERVICE] = tls_artifact
+        # OTLP HTTP has no TLS here, so mTLS mode serves OTLP over gRPC only.
+        ports.pop(OTLP_HTTP_PORT_ID)
+
     return ServiceConfig(
         image=tempo_params.image,
-        ports=USED_PORTS,
+        ports=ports,
         public_ports=public_ports,
-        files={
-            TEMPO_CONFIG_MOUNT_DIRPATH_ON_SERVICE: config_files_artifact_name,
-        },
+        files=files,
         cmd=[
             "-config.file={}".format(config_file_path),
         ],
@@ -140,10 +157,14 @@ def get_config(
     )
 
 
-def new_config_template_data(tempo_params):
+def new_config_template_data(tempo_params, tempo_mtls_enabled=False):
     return {
         "HTTPPort": HTTP_PORT_NUMBER,
         "GRPCPort": GRPC_PORT_NUMBER,
         "OTLPGRPCPort": OTLP_GRPC_PORT_NUMBER,
         "OTLPHTTPPort": OTLP_HTTP_PORT_NUMBER,
+        "TempoMTLSEnabled": tempo_mtls_enabled,
+        "TempoServerCertPath": TEMPO_SERVER_CERT_PATH,
+        "TempoServerKeyPath": TEMPO_SERVER_KEY_PATH,
+        "TempoClientCAPath": TEMPO_CLIENT_CA_PATH,
     }

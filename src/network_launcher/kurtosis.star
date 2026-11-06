@@ -58,7 +58,8 @@ def launch(
 
     if network_params.preregistered_validator_count == 0:
         for participant in args_with_right_defaults.participants:
-            total_number_of_validator_keys += participant.validator_count
+            if shared_utils.has_mnemonic_keys(participant):
+                total_number_of_validator_keys += participant.validator_count
 
     plan.print("Generating EL CL data")
 

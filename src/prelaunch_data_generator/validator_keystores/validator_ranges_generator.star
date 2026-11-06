@@ -33,7 +33,7 @@ def generate_validator_ranges(
             participant, index, participant_contexts, participant_configs
         )
         participant_config = participant_configs[index]
-        if participant_config.validator_count == 0:
+        if not shared_utils.has_mnemonic_keys(participant_config):
             continue
         start_index = running_total_validator_count
         running_total_validator_count += participant_config.validator_count

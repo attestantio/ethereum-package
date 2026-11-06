@@ -52,6 +52,12 @@ EXCLUDED_FIELDS = {
     "DEPOSIT_CONTRACT_ADDRESS",
     # Blob schedule - explicitly excluded
     "BLOB_SCHEDULE",
+    # shortcut: the genesis generator emits SLOT_DURATION_MS_HEZE, not the spec's
+    # EIP-8198 fields (upstream ethpandaops/ethereum-package#1499). Remove these
+    # once the generated config carries them or the spec drops them.
+    "EIP8198_FORK_EPOCH",
+    "EIP8198_FORK_VERSION",
+    "SLOT_DURATION_MS_EIP8198",
 }
 
 

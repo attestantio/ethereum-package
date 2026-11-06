@@ -9,8 +9,16 @@ distributor:
       protocols:
         grpc:
           endpoint: 0.0.0.0:{{ .OTLPGRPCPort }}
+{{- if .TempoMTLSEnabled }}
+          tls:
+            cert_file: {{ .TempoServerCertPath }}
+            key_file: {{ .TempoServerKeyPath }}
+            client_ca_file: {{ .TempoClientCAPath }}
+{{- end }}
+{{- if not .TempoMTLSEnabled }}
         http:
           endpoint: 0.0.0.0:{{ .OTLPHTTPPort }}
+{{- end }}
 
 storage:
   trace:

@@ -1,0 +1,191 @@
+constants = import_module("../package_io/constants.star")
+dirk_clusters = import_module("../package_io/dirk_clusters.star")
+dirk_launcher = import_module("./dirk_launcher.star")
+
+
+def run_dkg_ceremony(
+    plan,
+    dirk_service_names,
+    cert_result,
+    validator_count,
+    signing_threshold,
+    peer_count,
+    account_start,
+    cluster_id,
+):
+    """Run the DKG ceremony to create distributed validator accounts.
+
+    DKG creates new distributed keys. The composite public keys are then
+    extracted and passed to the genesis generator via CL_ADDITIONAL_VALIDATORS
+    so these validators are included in genesis state.
+
+    Args:
+        plan: The Kurtosis plan.
+        dirk_service_names: List of Dirk service names.
+        cert_result: Return value from certs.generate_certs().
+        validator_count: Number of validator accounts to create.
+        signing_threshold: Signing threshold for the distributed keys.
+        peer_count: Total number of Dirk peers (participants).
+    """
+    wallet_name = constants.DIRK_WALLET_NAME
+
+    first_dirk_service = dirk_service_names[0]
+    account_end = account_start + validator_count - 1
+
+    script_lines = [
+        "set -e",
+        "",
+        'echo "Starting DKG ceremony: creating {0} distributed validator account(s)"'.format(
+            validator_count
+        ),
+        'echo "  Remote: {0}:{1}"'.format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
+        'echo "  Threshold: {0}/{1}"'.format(signing_threshold, peer_count),
+        "",
+        "for i in $(seq {0} {1}); do".format(account_start, account_end),
+        '  echo "Creating account {0}/$i ..."'.format(wallet_name),
+        "  /app/ethdo account create \\",
+        "    --remote={0}:{1} \\".format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
+        "    --server-ca-cert=/certs/ca.crt \\",
+        "    --client-cert=/certs/ethdo.crt \\",
+        "    --client-key=/certs/ethdo.key \\",
+        "    --account={0}/$i \\".format(wallet_name),
+        "    --signing-threshold={0} \\".format(signing_threshold),
+        "    --participants={0} \\".format(peer_count),
+        '    --passphrase=secret --allow-weak-passphrases || {{ echo "ERROR: failed to create account {0}/$i"; exit 1; }}'.format(
+            wallet_name
+        ),
+        '  echo "Successfully created account {0}/$i"'.format(wallet_name),
+        "done",
+        "",
+        'echo "DKG ceremony completed successfully: {0} account(s) created"'.format(
+            validator_count
+        ),
+    ]
+
+    dkg_timeout = "1800s" if validator_count >= 128 else "300s"
+    plan.run_sh(
+        name="dkg-ceremony{0}".format(dirk_clusters.artifact_suffix(cluster_id)),
+        description="Running DKG ceremony to create {0} distributed validator account(s)".format(
+            validator_count
+        ),
+        run="\n".join(script_lines),
+        image=constants.DEFAULT_ETHDO_IMAGE,
+        files={
+            "/certs": cert_result.ethdo_certs,
+        },
+        wait=dkg_timeout,
+    )
+
+
+def extract_dkg_validators_file(
+    plan,
+    dirk_service_names,
+    cert_result,
+    validator_count,
+    account_start,
+    cluster_id,
+):
+    """Extract composite public keys from DKG accounts and create a validators file.
+
+    The validators file has the format expected by ethereum-genesis-generator's
+    --additional-validators / CL_ADDITIONAL_VALIDATORS env var:
+        # <validator pubkey>:<withdrawal credentials>:<balance>
+        0x<pubkey>:0x01<withdrawal_address>:32000000000
+
+    Args:
+        plan: The Kurtosis plan.
+        dirk_service_names: List of Dirk service names.
+        cert_result: Return value from certs.generate_certs().
+        validator_count: Number of validator accounts created by DKG.
+
+    Returns:
+        A file artifact containing validators.txt.
+    """
+    wallet_name = constants.DIRK_WALLET_NAME
+
+    first_dirk_service = dirk_service_names[0]
+    account_end = account_start + validator_count - 1
+
+    # Build withdrawal credentials from the withdrawal address
+    # Format: 0x01 + 11 bytes of zeros + 20 byte address (without 0x prefix)
+    withdrawal_address = constants.VALIDATING_REWARDS_ACCOUNT
+    # Strip 0x prefix if present for the padding
+    addr_hex = withdrawal_address
+    if len(addr_hex) > 2 and addr_hex[0:2] == "0x":
+        addr_hex = addr_hex[2:]
+
+    withdrawal_credentials = "0x010000000000000000000000" + addr_hex
+
+    script_lines = [
+        "set -e",
+        "",
+        'echo "Extracting composite public keys from {0} DKG accounts"'.format(
+            validator_count
+        ),
+        "",
+        "OUTFILE=/out/validators.txt",
+        "mkdir -p /out",
+        'echo "# DKG validator pubkeys for genesis" > $OUTFILE',
+        "",
+        "for i in $(seq {0} {1}); do".format(account_start, account_end),
+        '  echo "Getting account info for {0}/$i ..."'.format(wallet_name),
+        "  INFO=$(/app/ethdo account info \\",
+        "    --remote={0}:{1} \\".format(
+            first_dirk_service, dirk_launcher.DIRK_GRPC_PORT_NUM
+        ),
+        "    --server-ca-cert=/certs/ca.crt \\",
+        "    --client-cert=/certs/ethdo.crt \\",
+        "    --client-key=/certs/ethdo.key \\",
+        "    --account={0}/$i \\".format(wallet_name),
+        '    --verbose 2>&1) || { echo "ERROR: failed to get info for account $i"; echo "$INFO"; exit 1; }',
+        "",
+        "  # Try composite public key first (distributed accounts), fall back to public key",
+        '  PUBKEY=$(echo "$INFO" | grep "Composite public key:" | sed "s/Composite public key: //")',
+        '  if [ -z "$PUBKEY" ]; then',
+        '    PUBKEY=$(echo "$INFO" | grep "Public key:" | sed "s/Public key: //")',
+        "  fi",
+        "",
+        '  if [ -z "$PUBKEY" ]; then',
+        '    echo "ERROR: Could not extract public key for account $i"',
+        '    echo "Account info output:"',
+        '    echo "$INFO"',
+        "    exit 1",
+        "  fi",
+        "",
+        '  echo "$PUBKEY:{0}:32000000000" >> $OUTFILE'.format(withdrawal_credentials),
+        '  echo "  Account $i: $PUBKEY"',
+        "done",
+        "",
+        'echo "Successfully extracted {0} public key(s)"'.format(validator_count),
+        'echo "Validators file:"',
+        "cat $OUTFILE",
+    ]
+
+    result = plan.run_sh(
+        name="extract-dkg-validators{0}".format(
+            dirk_clusters.artifact_suffix(cluster_id)
+        ),
+        description="Extracting {0} DKG composite public keys for genesis".format(
+            validator_count
+        ),
+        run="\n".join(script_lines),
+        image=constants.DEFAULT_ETHDO_IMAGE,
+        files={
+            "/certs": cert_result.ethdo_certs,
+        },
+        store=[
+            StoreSpec(
+                src="/out/",
+                name="dkg-validators-file{0}".format(
+                    dirk_clusters.artifact_suffix(cluster_id)
+                ),
+            ),
+        ],
+        wait="300s",
+    )
+
+    return result.files_artifacts[0]

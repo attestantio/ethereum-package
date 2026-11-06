@@ -13,8 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: set-matrix
-        # List all yaml files in the .github/tests directory, except for the k8s.yaml file
-        run: echo "matrix=$(ls ./.github/tests/*.yaml | grep -vE 'k8s.yaml$' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+        # List all yaml files in the .github/tests directory, except k8s.yaml and the
+        # manual Vouch/Dirk fixtures (per-PR CI runs vouch-dirk-smoke).
+        run: echo "matrix=$(ls ./.github/tests/*.yaml | grep -vE 'k8s.yaml$|/vouch-dirk-|/tempo-(plain|mtls)\.yaml$' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
   run_with_args:
     needs:
       - list-yamls
