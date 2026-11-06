@@ -7,6 +7,7 @@ Attestant's fork of `ethpandaops/ethereum-package`: a Kurtosis package that laun
 - Lint: `kurtosis lint .`
 - Launch: `kurtosis run . --enclave <name> --args-file <fixture>.yaml`
 - Fixture tooling tests: `python3 -m unittest discover -s .github/fixtures` (needs PyYAML)
+- Vouch strategies module tests: `cd .github/fixtures/starlark-tests && go run . ../../../src/vc/vouch_strategies.star vouch_strategies_test.star` (needs Go)
 - Regenerate fixtures from their layouts: `python3 .github/fixtures/generate-fixture.py`; CI runs it with `--check`.
 
 ## Where to look
