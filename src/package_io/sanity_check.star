@@ -85,7 +85,7 @@ PARTICIPANT_CATEGORIES = {
         "vouch_multiinstance_attester_delay",
         "vouch_multiinstance_proposer_delay",
         "vouch_package_strategies",
-        "vouch_strategies_yaml",
+        "vouch_strategies",
     ],
 }
 
