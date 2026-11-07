@@ -11,6 +11,7 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 | `STRATEGY_NAMES` in `src/vc/vouch_strategies.star` matches the `strategies.*` keys Vouch reads | A new Vouch strategy is rejected at parse time, or a removed one still passes | Script that extracts the `strategies.*` keys Vouch reads at a pinned tag and diffs the names |
 | `VOUCH_FIELDS` in `input_parser.star`, `PARTICIPANT_CATEGORIES` in `sanity_check.star` and `default_participant()` list the same Vouch fields | A new field is accepted by one check and rejected by another | Unit test that compares the three lists |
 | Files follow the indentation `.editorconfig` declares (4 spaces for Python) | Reviews argue about style, and a new `.py` file matches neither the rule nor its neighbours | editorconfig-checker in CI |
+| The host ports an args file publishes are free when the run launches | The launch fails after about a minute with `port is already allocated` because another enclave publishes the same range | Check in `setup-before.sh` that compares the args file's `port_publisher` ranges with `docker ps` ports |
 
 ## Already enforced
 
