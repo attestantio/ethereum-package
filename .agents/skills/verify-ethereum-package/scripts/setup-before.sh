@@ -11,6 +11,7 @@ if [[ $# -ne 2 ]]; then
 fi
 args="$1"
 dir="$2"
+[[ -f "$args" ]] || { echo "args file not found: $args" >&2; exit 2; }
 mkdir -p "$dir"
 out="$dir/SETUP-before.md"
 # Another run's evidence must never be overwritten.
@@ -18,6 +19,9 @@ if [[ -e "$out" ]]; then
   echo "$out exists; pick a new run name" >&2
   exit 1
 fi
+# Written whole or not at all, so a failed run leaves nothing that blocks the next one.
+tmp="$(mktemp "$dir/.SETUP-before.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
 {
   echo "# SETUP-before: $(basename "$dir")"
   echo
@@ -40,7 +44,7 @@ fi
   echo "| Role | Image |"
   echo "|---|---|"
   # An args file may set no images; the package defaults apply then.
-  grep -nE '^\s*-?\s*[a-z_]*image:\s*\S' "$args" | sed -E 's/^([0-9]+):\s*-?\s*([a-z_]*image):\s*"?([^" ]+)"?.*/| \2 (line \1) | `\3` |/' ||
+  grep -nE '^[[:space:]]*-?[[:space:]]*[a-z_]*image:[[:space:]]*[^[:space:]]' "$args" | sed -E 's/^([0-9]+):[[:space:]]*-?[[:space:]]*([a-z_]*image):[[:space:]]*"?([^" ]+)"?.*/| \2 (line \1) | `\3` |/' ||
     echo "| all | package defaults |"
   echo
   if [[ -f "$dir/freshness.txt" ]]; then
@@ -53,13 +57,15 @@ fi
   fi
   echo "## Host"
   echo
-  echo "- Docker: $(docker info --format '{{.NCPU}} CPUs, {{.MemTotal}} bytes memory, {{.Architecture}}')"
+  echo "- Docker: $(docker info --format '{{.NCPU}} CPUs, {{.MemTotal}} bytes memory, {{.Architecture}}' 2>/dev/null || echo unavailable)"
   echo "- Kurtosis: $(kurtosis version 2>/dev/null | awk '/CLI Version/ {print $3}')"
+  echo "- OTel log stack: $([[ -n "$(docker ps -q --filter name=kurtosis-otel-collector 2>/dev/null)" ]] && echo running || echo "not running")"
   echo
   echo "## Args file"
   echo
   echo '```yaml'
   cat "$args"
   echo '```'
-} > "$out"
+} > "$tmp"
+mv "$tmp" "$out"
 echo "$out"

@@ -3,7 +3,7 @@
 # where the official image is amd64 only. The tag ends with the run name, so it never replaces
 # another run's image. Prints `<client>_ref=... <client>_id=...` for eval, and records the image in
 # the run's resources.md when it exists. Remove the image by ID at cleanup.
-# Usage: eval "$(build-arm64.sh <vouch|dirk> <args-file> <run>)"
+# Usage: out="$(build-arm64.sh <vouch|dirk> <args-file> <run>)" && eval "$out"
 set -euo pipefail
 if [[ $# -ne 3 || ! "$1" =~ ^(vouch|dirk)$ ]]; then
   echo "usage: $0 <vouch|dirk> <args-file> <run>" >&2
