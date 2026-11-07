@@ -57,10 +57,12 @@ needs_tools = unittest.skipUnless(BASH and shutil.which("jq") and shutil.which("
 
 class Node:
     """One beacon node with its execution client. `lag` is how many slots the head is behind the wall
-    clock. A field set to None is a request the node does not answer. `up=False` refuses connections."""
+    clock. A field set to None is a request the node does not answer. `up=False` refuses connections.
+    `el_up=False` is a stopped EL: kurtosis lists no port for it."""
 
-    def __init__(self, lag=1, peers=2, el_head=None, finalized=None, justified=None, up=True):
+    def __init__(self, lag=1, peers=2, el_head=None, finalized=None, justified=None, up=True, el_up=True):
         self.lag, self.peers, self.el_head, self.finalized, self.justified, self.up = lag, peers, el_head, finalized, justified, up
+        self.el_up = el_up
 
 
 def root_of(slot):
@@ -144,6 +146,8 @@ class StubEnclave:
                 ("el", f"el-{i}-geth-lighthouse", "rpc", execution(node, self.wall)),
             ):
                 services.append(name)
+                if kind == "el" and not node.el_up:
+                    continue
                 if kind == "cl" and not node.up:
                     ports.append(f"{name} {port_name} http://127.0.0.1:1")
                     continue
@@ -205,6 +209,12 @@ class DevnetHealthTest(unittest.TestCase):
         r = self.health(nodes, wall=300)
         self.assertEqual(r.returncode, 3, r.stdout)
         self.assertRegex(r.stdout, r"DIVERGED el-4-geth-lighthouse: block 0 is 290 behind the highest EL block 290")
+
+    def test_a_stopped_el_is_diverged_and_prints_no_curl_error(self):
+        r = self.health(healthy(3) + [Node(el_up=False)])
+        self.assertEqual(r.returncode, 3, r.stdout)
+        self.assertIn("DIVERGED el-4-geth-lighthouse: no answer to eth_blockNumber", r.stdout)
+        self.assertEqual(r.stderr, "")
 
     def test_one_of_two_nodes_stalled_inside_the_search_window_is_diverged(self):
         r = self.health([Node(), Node(lag=10)])
