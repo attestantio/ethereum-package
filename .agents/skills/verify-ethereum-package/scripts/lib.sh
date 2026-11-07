@@ -34,8 +34,9 @@ port_url() { kurtosis port print "$1" "$2" "$3" 2>/dev/null; }
 # JSON-RPC URL of an EL service. Erigon serves HTTP JSON-RPC on its ws-rpc port.
 el_rpc_url() { port_url "$1" "$2" rpc || port_url "$1" "$2" ws-rpc; }
 
-# Result of a parameterless JSON-RPC call (el_rpc <url> <method>), or empty.
+# Result of a parameterless JSON-RPC call (el_rpc <url> <method>), or empty. A stopped EL has no
+# URL and a stuck one times out; callers say so, so curl stays quiet.
 el_rpc() {
   curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}" "$1" | jq -r '.result // empty'
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}" "$1" 2>/dev/null | jq -r '.result // empty'
 }
