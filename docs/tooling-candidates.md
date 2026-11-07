@@ -10,6 +10,7 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 | A shell check that must fail the script is an explicit `if …; then exit 1; fi`, never `! cmd` | `set -e` ignores a failing `! cmd`, so the check never fails | shellcheck SC2251 over `.github/tests/*.sh` and the skill scripts in CI |
 | `STRATEGY_NAMES` in `src/vc/vouch_strategies.star` matches the `strategies.*` keys Vouch reads | A new Vouch strategy is rejected at parse time, or a removed one still passes | Script that extracts the `strategies.*` keys Vouch reads at a pinned tag and diffs the names |
 | `VOUCH_FIELDS` in `input_parser.star`, `PARTICIPANT_CATEGORIES` in `sanity_check.star` and `default_participant()` list the same Vouch fields | A new field is accepted by one check and rejected by another | Unit test that compares the three lists |
+| Files follow the indentation `.editorconfig` declares (4 spaces for Python) | Reviews argue about style, and a new `.py` file matches neither the rule nor its neighbours | editorconfig-checker in CI |
 
 ## Already enforced
 
@@ -17,4 +18,8 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 |-----------|------|
 | No implicit string concatenation in Starlark (`"foo" "bar"`) | Starlark parser, `kurtosis lint` |
 | Nimbus needs 12s slots on the mainnet preset and 6s on minimal | `input_parser.star` |
-| Generated fixtures match their layouts | `generate-fixture.py --check` in the fixture-tooling workflow |
+| Generated fixtures match their layouts, and every generated fixture has a layout | `generate-fixture.py --check` in the fixture-tooling workflow |
+| A generated fixture parses back to its layout plus `network_params` | `generate-fixture.py`, on every generation |
+| `sed` lines in the skill scripts avoid `\s`, `\S`, `\d` and `\w`, which BSD sed on macOS lacks (the Images table came out as raw `grep -n` lines) | `test_skill_scripts.py` |
+| No script or recipe runs `eval "$(cmd)"` without first checking that `cmd` succeeded (a failed `cmd` prints nothing, `eval` returns 0, and a later step writes a blank value) | `test_skill_scripts.py` |
+| Exit codes of `devnet-health.sh` and the records `setup-before.sh` and `setup-after.sh` write, including their failure paths | `test_skill_scripts.py`, against a stub `kurtosis`, `docker` and local beacon and EL servers |

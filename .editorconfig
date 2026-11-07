@@ -21,6 +21,8 @@ indent_size = 4
 
 # 4 space indentation for all python files
 [*.py]
+indent_style = space
+indent_size = 4
 
 # 2 space indentation for all yaml files
 [*.yml, *.yaml]
