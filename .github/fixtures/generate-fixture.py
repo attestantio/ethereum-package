@@ -34,7 +34,7 @@ TESTS = ROOT / ".github/tests"
 
 FAR_FUTURE = 18446744073709551615
 GENERATED_MARK = "by .github/fixtures/generate-fixture.py."
-# Epoch the devnet's next fork moves to, so every run crosses its boundary.
+# Epoch the devnet's next fork moves to. A launch with its images pulled returns well before it; doctor.sh warns when a run did not.
 NEXT_FORK_EPOCH = 2
 GENESIS_DELAY = 20
 SLOTS_PER_EPOCH = {"mainnet": 32, "minimal": 8}

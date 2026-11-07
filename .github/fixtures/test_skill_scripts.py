@@ -58,11 +58,11 @@ needs_tools = unittest.skipUnless(BASH and shutil.which("jq") and shutil.which("
 class Node:
     """One beacon node with its execution client. `lag` is how many slots the head is behind the wall
     clock. A field set to None is a request the node does not answer. `up=False` refuses connections.
-    `el_up=False` is a stopped EL: kurtosis lists no port for it."""
+    `el_up=False` is a stopped EL: kurtosis lists no port for it. `fork_epoch` is the GLOAS epoch its spec serves."""
 
-    def __init__(self, lag=1, peers=2, el_head=None, finalized=None, justified=None, up=True, el_up=True):
+    def __init__(self, lag=1, peers=2, el_head=None, finalized=None, justified=None, up=True, el_up=True, fork_epoch="2"):
         self.lag, self.peers, self.el_head, self.finalized, self.justified, self.up = lag, peers, el_head, finalized, justified, up
-        self.el_up = el_up
+        self.el_up, self.fork_epoch = el_up, fork_epoch
 
 
 def root_of(slot):
@@ -89,7 +89,7 @@ def beacon(node, genesis, wall):
             path = self.path
             if path == "/eth/v1/config/spec":
                 return self.send({"data": {"SECONDS_PER_SLOT": str(SPS), "SLOTS_PER_EPOCH": str(SPE), "PRESET_BASE": "mainnet",
-                                           "CONFIG_NAME": "stub", "DEPOSIT_CHAIN_ID": "1", "GLOAS_FORK_EPOCH": "2"}})
+                                           "CONFIG_NAME": "stub", "DEPOSIT_CHAIN_ID": "1", "FULU_FORK_EPOCH": "0", "GLOAS_FORK_EPOCH": node.fork_epoch}})
             if path == "/eth/v1/beacon/genesis":
                 return self.send({"data": {"genesis_time": str(genesis)}})
             if path == "/eth/v1/beacon/headers/head":
@@ -367,6 +367,24 @@ class DoctorTest(unittest.TestCase):
             r = enclave.run("doctor.sh", "stub", mode="down")
         self.assertEqual(r.returncode, 2)
         self.assertIn("does not prove the enclave is absent", r.stderr)
+
+    def doctor_output(self, nodes, wall):
+        with StubEnclave(nodes, wall) as enclave:
+            return enclave.run("doctor.sh", "stub").stdout
+
+    def test_a_fork_still_ahead_is_announced(self):
+        out = self.doctor_output(healthy(1), wall=10)
+        self.assertRegex(out, r"(?m)^INFO fork GLOAS at epoch 2 starts at \d{4}-\d\d-\d\dT\S+Z$")
+
+    def test_a_fork_that_has_started_is_a_warning_not_a_failure(self):
+        out = self.doctor_output(healthy(1), wall=200)
+        self.assertRegex(out, r"(?m)^WARN fork GLOAS at epoch 2 started at \S+: .*did not cross it live$")
+        self.assertNotRegex(out, r"FAIL.*fork")
+
+    def test_a_network_with_no_scheduled_fork_has_no_fork_line(self):
+        out = self.doctor_output([Node(fork_epoch="18446744073709551615")], wall=10)
+        self.assertNotIn(" fork ", out)
+        self.assertIn("INFO genesis", out)
 
 
 class ScriptRulesTest(unittest.TestCase):

@@ -23,6 +23,7 @@ This directory is the maintained source for verifying the package's fixtures. Re
 - Proof is every step of the fixture's recipe passing, plus `devnet-health.sh` and both setup records.
 - A step whose precondition never happened is blocked, with the reason, not passed.
 - A run shorter than the health epoch is a smoke result, not proof. Report each check that passed early as `pass at epoch N`, and each check that needs a later epoch as `blocked: needs epoch M`.
+- A fixture that schedules a fork after genesis, such as a generated next-fork fixture, is proven across that fork only if the launch returned before it. Report `fork crossed live: yes` when `doctor.sh` printed the fork as INFO right after the launch and the run reached the health epoch, and `no` when it printed a WARN.
 - Every result names the fixture, the commit and the run directory.
 
 ## Generated fixtures
@@ -35,7 +36,7 @@ Every recipe runs these steps around its own:
 
 1. **Freshness.** Before launch, `GITHUB_TOKEN=$(gh auth token) uv run --with pyyaml python3 .github/fixtures/resolve-images.py check .github/tests/<fixture>.yaml > "$run_dir/freshness.txt"`, on the committed fixture, not an override copy. In latest mode use `... resolve-images.py latest .github/tests/<fixture>.yaml "$run_dir/latest.yaml" > "$run_dir/freshness.txt"` and set `args="$run_dir/latest.yaml"`: the copy takes each `differs` client's current build and keeps `same` and `prerelease` pins. Say the mode in SETUP-before and REPORT.md. If a latest build cannot run the fixture's fork rules, record it as a client-compatibility finding and rerun in pinned mode. Each client is `same`, `differs` (with its pin below) or `prerelease` (pinned ahead of the latest release on purpose). `setup-before.sh` embeds the file. It ends with a summary line. Exit 1 means a client could not be resolved, and its `error` line says why; a 429 is the Docker Hub limit above. It never blocks the run: refreshing pins is a separate change with its own signed-off run. In REPORT.md, give the summary line as an informational row. Takes about a minute.
 2. **Launch.** `kurtosis run . --enclave "$enclave" --args-file "$args" > "$run_dir/launch.log" 2>&1; echo $? > "$run_dir/launch.exit"`. Pass: exit 0. Fail: any other exit; save `launch.log` before anything else.
-3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time and when the health epoch starts. Fail: any FAIL line.
+3. **Doctor.** `doctor.sh "$enclave" <health epoch>`. Pass: exit 0. Its INFO lines give genesis time, when the health epoch starts and when the first scheduled fork starts. A WARN line means that fork had already started when the launch returned, so the run did not cross it live. Fail: any FAIL line.
 4. The recipe's own steps.
 5. **Health.** After the recipe's health epoch, `devnet-health.sh "$enclave" <health epoch> > "$run_dir/health.txt"`. Pass: exit 0. Smoke only: 4 (healthy so far, but run before the health epoch). Fail: 1 (no healthy majority chain), 3 (a client or its EL off the chain, stalled or not finalizing); 2 means the check could not run.
 6. **Proof.** `setup-after.sh`, `REPORT.md`, `review-page.sh`.
