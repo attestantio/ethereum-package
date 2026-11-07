@@ -74,7 +74,7 @@ participants:
 fixture_source:
   mode: {mode}
   repo: ethpandaops/glamsterdam-devnets
-  commit: abc123
+  commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   devnet: devnet-8
   network_params:
     seconds_per_slot: 6
@@ -174,19 +174,109 @@ class GenerateTest(unittest.TestCase):
         p = gen.apply_overrides({"seconds_per_slot": 6, "slot_duration_ms": 6000}, {"slot_duration_ms": 1500})
         self.assertEqual(p, {"slot_duration_ms": 1500})
 
-    def test_check_exits_nonzero_on_drift(self):
-        layouts = self.dir / "layouts"
-        tests = self.dir / "tests"
-        layouts.mkdir()
-        tests.mkdir()
-        (layouts / "f.yaml").write_text(LAYOUT.format(mode="next-fork"))
-        (tests / "f.yaml").write_text("hand edited\n")
+    def check_dirs(self):
+        layouts, tests = self.dir / "layouts", self.dir / "tests"
+        layouts.mkdir(exist_ok=True)
+        tests.mkdir(exist_ok=True)
         self.addCleanup(setattr, gen, "LAYOUTS", gen.LAYOUTS)
         self.addCleanup(setattr, gen, "TESTS", gen.TESTS)
         gen.LAYOUTS, gen.TESTS = layouts, tests
-        with self.assertRaises(SystemExit) as raised, contextlib.redirect_stdout(io.StringIO()):
-            gen.main(["--check"], fake_fetch)
-        self.assertIn("differ", str(raised.exception.code))
+        return layouts, tests
+
+    def check(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            try:
+                gen.main(["--check"], fake_fetch)
+            except SystemExit as raised:
+                return str(raised.code), out.getvalue()
+        return None, out.getvalue()
+
+    def test_check_exits_nonzero_on_drift(self):
+        layouts, tests = self.check_dirs()
+        (layouts / "f.yaml").write_text(LAYOUT.format(mode="next-fork"))
+        (tests / "f.yaml").write_text("hand edited\n")
+        code, _ = self.check()
+        self.assertIn("differ", code)
+
+    def test_check_passes_and_counts_the_layouts_it_checked(self):
+        layouts, tests = self.check_dirs()
+        (layouts / "f.yaml").write_text(LAYOUT.format(mode="next-fork"))
+        (tests / "f.yaml").write_text(gen.generate(layouts / "f.yaml", fake_fetch))
+        code, out = self.check()
+        self.assertIsNone(code)
+        self.assertIn("1 generated fixture(s) match", out)
+
+    def test_check_fails_on_a_generated_fixture_whose_layout_is_gone(self):
+        layouts, tests = self.check_dirs()
+        (layouts / "f.yaml").write_text(LAYOUT.format(mode="next-fork"))
+        (tests / "f.yaml").write_text(gen.generate(layouts / "f.yaml", fake_fetch))
+        (layouts / "f.yaml").unlink()
+        code, out = self.check()
+        self.assertIn("have none", code)
+        self.assertIn("f.yaml is generated but has no layout", out)
+
+    def test_check_ignores_hand_written_fixtures(self):
+        _, tests = self.check_dirs()
+        (tests / "hand.yaml").write_text("# Written by hand.\nparticipants: []\n")
+        code, out = self.check()
+        self.assertIsNone(code)
+        self.assertIn("0 generated fixture(s)", out)
+
+    def test_commit_must_be_a_full_hex_sha(self):
+        for commit in ("master", "abc123", "A" * 40):
+            layout = self.dir / "branch.yaml"
+            layout.write_text(LAYOUT.format(mode="next-fork").replace("a" * 40, commit))
+            with self.assertRaises(SystemExit) as raised:
+                gen.generate(layout, fake_fetch)
+            self.assertIn("40-hex", str(raised.exception.code), commit)
+
+    def test_fork_the_generator_does_not_map_fails(self):
+        config = yaml.load(CONFIG + "EIP7928_FORK_EPOCH: 1000\n", Loader=yaml.BaseLoader)
+        with self.assertRaises(SystemExit) as raised:
+            gen.next_fork_params(config, GENESIS)
+        self.assertIn("EIP7928_FORK_EPOCH", str(raised.exception.code))
+
+    def test_copies_inclusion_list_and_heze_slot_duration_when_the_source_sets_them(self):
+        config = yaml.load(CONFIG + "INCLUSION_LIST_DUE_BPS: 6667\nSLOT_DURATION_MS_HEZE: 6000\n", Loader=yaml.BaseLoader)
+        p = gen.next_fork_params(config, GENESIS)
+        self.assertEqual((p["inclusion_list_due_bps"], p["slot_duration_ms_heze"]), (6667, 6000))
+        p = gen.next_fork_params(yaml.load(CONFIG, Loader=yaml.BaseLoader), GENESIS)
+        self.assertNotIn("inclusion_list_due_bps", p)
+        self.assertNotIn("slot_duration_ms_heze", p)
+
+    def test_a_source_without_a_gas_limit_schedule_gets_an_empty_one(self):
+        config = yaml.load(CONFIG.split("GAS_LIMIT_SCHEDULE:")[0], Loader=yaml.BaseLoader)
+        self.assertEqual(gen.next_fork_params(config, GENESIS)["gas_limit_schedule"], [])
+
+    def test_electra_blob_values_come_from_prague(self):
+        p = self.params()
+        self.assertEqual((p["max_blobs_per_block_electra"], p["target_blobs_per_block_electra"]), (9, 6))
+
+    def test_mainnet_blob_steps(self):
+        p = self.params("mainnet")
+        self.assertEqual(
+            [(p[f"bpo_{n}_max_blobs"], p[f"bpo_{n}_target_blobs"], p[f"bpo_{n}_base_fee_update_fraction"]) for n in (1, 2)],
+            [(15, 10, 8346193), (21, 14, 11684671)],
+        )
+
+    def test_fixture_source_spellings_the_stripper_misses_fail_instead_of_launching_broken(self):
+        spellings = {
+            "flow mapping": "fixture_source: {mode: mainnet}\n",
+            "quoted key": '"fixture_source":\n  mode: mainnet\n',
+            "column-0 comment inside the block": "fixture_source:\n  mode: mainnet\n# note\n  repo: x\n",
+        }
+        for label, block in spellings.items():
+            layout = self.dir / "odd.yaml"
+            layout.write_text("participants:\n  - el_type: geth\n\n" + block)
+            with self.assertRaises(SystemExit, msg=label) as raised:
+                gen.generate(layout, fake_fetch)
+            self.assertIn("does not parse back", str(raised.exception.code), label)
+
+    def test_a_comment_after_the_fixture_source_key_is_stripped(self):
+        layout = self.dir / "commented.yaml"
+        layout.write_text(LAYOUT.format(mode="mainnet").replace("fixture_source:", "fixture_source:  # pinned devnet"))
+        self.assertNotIn("fixture_source", gen.generate(layout, fake_fetch))
 
 
 if __name__ == "__main__":

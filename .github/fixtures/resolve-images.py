@@ -13,7 +13,8 @@
       `differs` from its pins, printing the pin under each difference. A
       generated next-fork fixture resolves at its source repo's HEAD and lists
       newer devnets; any other fixture resolves latest stable releases. A
-      prerelease pin newer than the latest release is marked `prerelease`.
+      prerelease pin whose version is above the latest release's is marked
+      `prerelease`; a pin of a version that has since been released differs.
       Exits 1 when a client could not be resolved; its `error` line says why
       (an HTTP 429 is a registry rate limit).
   resolve-images.py latest <fixture> <out>
@@ -86,10 +87,15 @@ def contains(repo, tag, sha):
 
 def inspect(ref):
     """Digest and platforms of an image, from its registry manifest."""
-    out = subprocess.run(
-        ["docker", "buildx", "imagetools", "inspect", ref, "--format", "{{json .}}"],
-        check=True, capture_output=True, text=True,
-    ).stdout
+    try:
+        out = subprocess.run(
+            ["docker", "buildx", "imagetools", "inspect", ref, "--format", "{{json .}}"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+    except subprocess.CalledProcessError as error:
+        # Docker's own reason (for example a Docker Hub 429) is what the reader needs, not the command line.
+        lines = (error.stderr or "").strip().splitlines()
+        raise RuntimeError(lines[-1] if lines else f"docker exited {error.returncode}") from None
     data = json.loads(out)
     manifest = data["manifest"]
     platforms = sorted({f"{m['platform']['os']}/{m['platform']['architecture']}"
@@ -120,7 +126,9 @@ def hub_tags(image, branch):
 
 
 def release_line(name, why):
-    client = CLIENTS[name]
+    client = CLIENTS.get(name)
+    if client is None:
+        raise RuntimeError(f"no release mapping for {name}")
     tag = latest_release(client.repo)
     ref = f"{client.image}:{client.image_tag(tag)}"
     digest, platforms = inspect(ref)
@@ -159,12 +167,18 @@ def fixture_pins(fixture):
     for participant in fixture.get("participants", []):
         el, cl = participant.get("el_type"), participant.get("cl_type")
         vc = participant.get("vc_type") or cl
+        if el == "nimbus":
+            el = "nimbus_el"  # nimbus-eth1; CLIENTS["nimbus"] is the consensus client, nimbus-eth2
         for name, key in ((el, "el_image"), (cl, "cl_image")):
             if name:
                 pins.setdefault(name, set()).update(filter(None, [participant.get(key)]))
         if vc == "vouch":
             pins.setdefault("vouch", set()).update(filter(None, [participant.get("vc_image")]))
             pins.setdefault("dirk", set()).update(filter(None, [participant.get("dirk_image")]))
+        elif vc == "nimbus":
+            # The Nimbus validator client has its own image; only a pinned one is recorded.
+            if participant.get("vc_image"):
+                pins.setdefault("nimbus_validator", set()).add(participant["vc_image"])
         elif vc:
             name = "prysm_validator" if vc == "prysm" else vc
             pins.setdefault(name, set()).update(filter(None, [participant.get("vc_image")]))
@@ -181,6 +195,13 @@ def newer_devnets(names, devnet):
 
 
 PRERELEASE = re.compile(r":v?[0-9][^@]*-(alpha|beta|rc)")
+VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+
+def version_of(ref):
+    """(major, minor, patch) from the tag of an image ref, or None when the tag has no version."""
+    match = VERSION.search(ref.split("@", 1)[0].rsplit(":", 1)[-1])
+    return tuple(int(n) for n in match.groups()) if match else None
 
 
 def compare_pins(fixture, resolve, updates=None):
@@ -199,8 +220,10 @@ def compare_pins(fixture, resolve, updates=None):
             counts["same"] += 1
             print(f"same       {line}")
             continue
-        # A prerelease pin is ahead of the latest release on purpose.
-        status = "prerelease" if "latest release" in line and any(PRERELEASE.search(p) for p in pinned) else "differs"
+        # A prerelease pin is ahead of the release on purpose only while its version is higher.
+        released = version_of(ref)
+        ahead = released is not None and any(PRERELEASE.search(p) and (version_of(p) or ()) > released for p in pinned)
+        status = "prerelease" if ahead else "differs"
         counts[status] += 1
         if status == "differs" and updates is not None:
             updates.update({pin: ref for pin in pinned})
@@ -212,7 +235,8 @@ def compare_pins(fixture, resolve, updates=None):
 def latest_text(text, updates):
     """The fixture with every differing pin replaced, under a header saying so."""
     for old, new in updates.items():
-        text = text.replace(old, new)
+        # Whole values only: a pin that starts another one (`x:1` and `x:1.2`) must not rewrite it.
+        text = re.sub(rf"(?<![^\s\"']){re.escape(old)}(?![^\s\"'#])", lambda _: new, text)
     return f"# Latest builds resolved {datetime.date.today()} by resolve-images.py latest; not the pinned fixture.\n" + text
 
 
@@ -260,6 +284,8 @@ def main(argv):
             sys.exit(1)
         return
     if len(argv) == 3 and argv[0] == "latest":
+        if os.path.realpath(argv[1]) == os.path.realpath(argv[2]):
+            sys.exit("latest: <out> must not be the fixture itself; the copy would replace the pinned fixture")
         updates = {}
         failed = check(argv[1], updates)
         with open(argv[2], "w") as out:
