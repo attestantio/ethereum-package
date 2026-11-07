@@ -40,8 +40,9 @@ def validate(overrides):
             fail("vouch_strategies.{0} must map settings to values".format(name))
 
     # shortcut: Vouch reads only combinedmajority.threshold for this style and defaults it to 0
-    # (attestantio/vouch#463, fixed by PR #474). Remove once every Vouch image the package
-    # targets has the fix.
+    # (attestantio/vouch#463). Vouch's fix (#480) only warns about a threshold of 0 or 1 and keeps
+    # 0 as the default. Remove once every Vouch image the package targets rejects a missing or
+    # zero threshold for this style.
     attestationdata = overrides.get("attestationdata", {})
     combined = attestationdata.get("combinedmajority", {})
     threshold = combined.get("threshold") if type(combined) == "dict" else None
