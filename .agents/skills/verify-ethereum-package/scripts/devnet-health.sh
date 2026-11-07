@@ -3,19 +3,25 @@
 # agreement, finality and EL heights. Running containers or is_syncing=false
 # are not health.
 #
-# Usage: devnet-health.sh <enclave> [health-epoch]
+# Usage: devnet-health.sh <enclave> <health-epoch>
+# The health epoch is the recipe's first epoch at which every check is valid. Finality is judged
+# from it and justification from the epoch before it, so the argument is required.
 # Exit 0 HEALTHY: every client is on one chain, close to the wall clock, and finalizing.
 # Exit 1 UNHEALTHY: no majority chain, or it is stalled, not justifying or not finalizing.
+#   A client more than 8 slots behind is stalled. With two clients, one more than 12 slots behind
+#   leaves no majority with recent blocks, so that is exit 1; closer to the head it is exit 3.
 # Exit 2: the check could not run (bad arguments, no enclave, no beacon API).
-# Exit 3 DIVERGED: the majority chain is healthy but some client is off it, stalled or not finalizing.
-# Exit 4 INCOMPLETE: healthy so far, but the wall clock is before [health-epoch], so this is a smoke result.
+# Exit 3 DIVERGED: the majority chain is healthy but some client (CL or EL) is off it, stalled,
+#   not finalizing, or an EL is more than 5 blocks behind the highest EL.
+# Exit 4 INCOMPLETE: healthy so far, but the wall clock is before <health-epoch>, so this is a smoke result.
 set -uo pipefail
-if [[ $# -lt 1 || $# -gt 2 || -z "$1" || ! "${2:-0}" =~ ^[0-9]+$ ]]; then
-  echo "usage: $0 <enclave> [health-epoch]" >&2
+if [[ $# -ne 2 || -z "$1" || ! "$2" =~ ^[0-9]+$ ]]; then
+  echo "usage: $0 <enclave> <health-epoch>" >&2
   exit 2
 fi
 enclave="$1"
-health_epoch="${2:-0}"
+health_epoch="$2"
+just_epoch=$(( health_epoch > 0 ? health_epoch - 1 : 0 ))
 source "$(dirname "$0")/lib.sh"
 
 FAIL=0
@@ -27,7 +33,7 @@ warn() { printf '  WARN %s\n' "$*"; }
 diverge() { printf '  DIVERGED %s: %s\n' "$1" "$2"; [[ " $DIVERGED " == *" $1 "* ]] || DIVERGED="$DIVERGED $1"; }
 get() { curl -fsS -m 10 "$1$2" 2>/dev/null; }
 
-inspect="$(kurtosis enclave inspect "$enclave" 2>/dev/null)" || { echo "enclave $enclave not found" >&2; exit 2; }
+inspect="$(inspect_enclave "$enclave")" || exit 2
 mapfile -t CLS < <(services_of cl "$inspect")
 mapfile -t ELS < <(services_of el "$inspect")
 (( ${#CLS[@]} )) || { echo "no beacon nodes in $enclave" >&2; exit 2; }
@@ -112,8 +118,8 @@ for cl in "${CLS[@]}"; do
   gap=$(( wall - ${HEAD[$cl]} )); (( gap < 0 )) && gap=0
   line="head ${HEAD[$cl]} ($gap behind wall clock), ${PEERS[$cl]:-?} peers, justified ${JUST[$cl]:-?}, finalized ${FIN[$cl]:-?}"
   if (( gap > 8 )); then diverge "$cl" "$line; stalled"
-  elif [[ "${PEERS[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; no peers"
-  elif (( wall_epoch >= 5 )) && [[ "${FIN[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; nothing finalized by epoch $wall_epoch"
+  elif (( ${#CLS[@]} > 1 )) && [[ "${PEERS[$cl]}" == 0 ]]; then diverge "$cl" "$line; no peers"
+  elif (( wall_epoch >= health_epoch )) && [[ "${FIN[$cl]:-0}" == 0 ]]; then diverge "$cl" "$line; nothing finalized by epoch $wall_epoch"
   elif (( max_fin - ${FIN[$cl]:-0} > 2 )); then diverge "$cl" "$line; finality behind the others"
   else ok "$cl $line"; fi
 done
@@ -128,14 +134,14 @@ if (( chain )); then
   if (( wall - best_head > 8 )); then bad "majority head $best_head is $(( wall - best_head )) slots behind the wall clock"; else ok "majority head $best_head"; fi
   max_just=0
   for cl in "${CLS[@]}"; do (( ${CANON[$cl]} )) && [[ -n "${JUST[$cl]}" ]] && (( ${JUST[$cl]} > max_just )) && max_just=${JUST[$cl]}; done
-  if (( wall_epoch >= 4 )); then
+  if (( wall_epoch >= just_epoch )); then
     (( wall_epoch - max_just > 4 )) && bad "justification stuck at epoch $max_just at wall-clock epoch $wall_epoch" || ok "justified epoch $max_just at wall-clock epoch $wall_epoch"
   fi
-  if (( wall_epoch >= 5 )); then
+  if (( wall_epoch >= health_epoch )); then
     (( max_fin > 0 )) && ok "finalized epoch $max_fin at wall-clock epoch $wall_epoch" || bad "nothing finalized by wall-clock epoch $wall_epoch"
     (( wall_epoch - max_fin > 6 )) && bad "finality $(( wall_epoch - max_fin )) epochs behind the wall clock"
   else
-    warn "wall-clock epoch $wall_epoch; finality is judged from epoch 5"
+    warn "wall-clock epoch $wall_epoch; finality is judged from epoch $health_epoch"
   fi
 else
   note "  skipped: there is no majority chain"
@@ -159,16 +165,20 @@ fi
 
 note ""
 note "execution layer heights"
-declare -a NUMS
+declare -A ELH
+max_el=0
 for el in "${ELS[@]}"; do
   hx="$(el_rpc "$(el_rpc_url "$enclave" "$el")" eth_blockNumber)"
   if [[ -z "$hx" ]]; then diverge "$el" "no answer to eth_blockNumber"; continue; fi
-  NUMS+=("$((hx))"); note "  $el = $((hx))"
+  ELH[$el]=$((hx)); note "  $el = ${ELH[$el]}"
+  (( ELH[$el] > max_el )) && max_el=${ELH[$el]}
 done
-if (( ${#NUMS[@]} > 1 )); then
-  spread=$(( $(printf '%s\n' "${NUMS[@]}" | sort -n | tail -1) - $(printf '%s\n' "${NUMS[@]}" | sort -n | head -1) ))
-  (( spread > 5 )) && warn "EL heights differ by $spread blocks" || ok "EL heights within $spread blocks"
-fi
+# shortcut: ELs are compared with each other, so ELs all frozen at one height pass here; the CL checks catch a chain that stopped.
+el_behind=0
+for el in "${!ELH[@]}"; do
+  if (( max_el - ELH[$el] > 5 )); then diverge "$el" "block ${ELH[$el]} is $(( max_el - ELH[$el] )) behind the highest EL block $max_el"; el_behind=1; fi
+done
+(( ${#ELH[@]} > 1 && ! el_behind )) && ok "EL heights within 5 blocks of each other"
 
 note ""
 if (( FAIL )); then note "RESULT: UNHEALTHY"; exit 1; fi

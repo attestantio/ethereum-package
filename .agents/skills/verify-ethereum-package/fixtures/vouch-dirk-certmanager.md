@@ -23,7 +23,7 @@ Health epoch: 5, the first epoch at which `devnet-health.sh` judges finality.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 
-- **Images.** `.github/tests/assert-certmanager-immutable-images.sh "$enclave" > "$run_dir/assert-images.txt" 2>&1`. Pass: exit 0. Fail: any service runs an image other than the fixture's pin.
+- **Images.** `.github/tests/assert-certmanager-immutable-images.sh "$enclave" > "$run_dir/assert-images.txt" 2>&1`. Pass: exit 0. Fail: any service runs an image other than the fixture's pin. In latest mode the launched images differ from the committed pins by design, so record this step as `blocked: latest mode` unless Freshness reports `vouch` and `dirk` as `same`.
 
 ## Gotchas
 

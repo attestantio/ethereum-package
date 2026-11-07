@@ -2,9 +2,9 @@
 # Read-only check: is this enclave worth driving?
 # Usage: doctor.sh <enclave> [epoch]
 # With an epoch, it also prints when that epoch starts, e.g. the recipe's health epoch.
-# Exit 0 when every check passes, 1 otherwise, 2 when the enclave is not found.
+# Exit 0 when every check passes, 1 otherwise, 2 when the check could not run (bad arguments, enclave not found).
 set -uo pipefail
-if [[ $# -lt 1 || $# -gt 2 ]]; then
+if [[ $# -lt 1 || $# -gt 2 || ! "${2:-0}" =~ ^[0-9]+$ ]]; then
   echo "usage: $0 <enclave> [epoch]" >&2
   exit 2
 fi
@@ -15,7 +15,7 @@ rc=0
 ok()  { printf 'PASS %s\n' "$*"; }
 bad() { printf 'FAIL %s\n' "$*"; rc=1; }
 
-inspect="$(kurtosis enclave inspect --full-uuids "$enclave" 2>/dev/null)" || { bad "enclave $enclave not found"; exit 2; }
+inspect="$(inspect_enclave "$enclave" --full-uuids)" || exit 2
 status="$(awk '/^Status:/ {print $2; exit}' <<<"$inspect")"
 [[ "$status" == RUNNING ]] && ok "enclave $enclave $(awk '/^UUID:/ {print $2; exit}' <<<"$inspect") is RUNNING" || bad "enclave status is $status"
 

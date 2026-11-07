@@ -9,12 +9,13 @@ The package's user surface is a YAML args file passed to `kurtosis run`, the enc
 
 Launch mechanics (config fields, `kurtosis` commands, images) are in the upstream `kurtosis-ethereum` skill in this repo (`.agents/skills/kurtosis-ethereum`). This skill adds ownership, readiness, proof and evidence. Pick the fixture from [`fixtures/README.md`](fixtures/README.md) first; every check maps to a recipe there.
 
-Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4.3 or newer, `git`, `jq`, `curl`, `shasum`, `docker`, `kurtosis` and `uv`; the Freshness step also needs `gh` for a GitHub token.
+Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` and run from the repo root. They need bash 4.4 or newer, `git`, `jq`, `curl`, `shasum`, `docker`, `kurtosis` and `uv`; the Freshness step also needs `gh` for a GitHub token.
 
 ## Launch
 
 1. **Run directory.** `run_dir="$(new-run.sh <fixture>)" && run="$(basename "$run_dir")" && enclave="$run"`, as its own command; go on only if it succeeded. The enclave takes the run's name. It creates `<fixture>-<yyyymmdd><letter>` under `${VERIFY_EVIDENCE_DIR:-$HOME/ValidationReviews}` with the first free letter. Never write into a directory you did not create. Evidence lives there, outside every repo.
 2. **Inventory.** Save `kurtosis enclave ls` to `$run_dir/enclaves-before.txt`. Every enclave listed there belongs to someone else. The enclave name for this run must not appear in it.
+   - **OTel log stack.** The upstream `kurtosis-ethereum` skill starts it with `kurtosis otel start` so logs outlive the enclave. That command restarts the shared Kurtosis engine, so run it only when `enclaves-before.txt` lists no running enclave and `docker ps` shows no `kurtosis-otel-collector`. Otherwise skip it; `launch.log` and `kurtosis service logs` remain the evidence. `setup-before.sh` records whether the stack is running.
 3. **Mode and freshness.** Pick the mode, then run the Freshness step from [`fixtures/README.md`](fixtures/README.md#common-steps) on the committed fixture.
    - **Pinned** proves the fixture itself: its pinned images, reproducibly. Use it for a fixture's signed-off proof run.
    - **Latest** runs today's builds of every client whose pin is stale, from the committed fixture's source. Use it when the network serves another check, such as a client change under `verify-vouch`. Its result says nothing about the pins.
@@ -33,7 +34,7 @@ Scripts below are relative to `.agents/skills/verify-ethereum-package/scripts/` 
 
 Read-only. Checks the enclave is running, every `el-`, `cl-`, `vc-` and `dirk-` container and `tempo` is running, and every beacon node's head is within 2 slots of the wall clock. It also prints genesis time and the wall-clock epoch; pass the recipe's health epoch as a second argument to print when it starts. Exit 0 means worth driving. Run it first, and again whenever something looks off.
 
-For chain health beyond the head, run `devnet-health.sh "$enclave" <health epoch>`. It checks peers, head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and EL heights. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client off the chain, stalled or not finalizing while the majority is healthy, 4 is healthy so far but before the health epoch (a smoke result, not proof), and 2 means the check could not run. A healthy majority does not verify a diverged client: record each one.
+For chain health beyond the head, run `devnet-health.sh "$enclave" <health epoch>`. The health epoch is required: finality is judged from it and justification from the epoch before. It checks peers (a lone beacon node has none by design), head progress against the wall clock, block-root agreement across every client, justification and finality, missed slots and that no EL is more than 5 blocks behind the highest. Exit 0 is healthy, 1 is no healthy majority chain, 3 is a client or its EL off the chain, stalled or not finalizing while the majority is healthy, 4 is healthy so far but before the health epoch (a smoke result, not proof), and 2 means the check could not run, including when `kurtosis enclave inspect` itself failed, which does not prove the enclave is absent. A healthy majority does not verify a diverged client: record each one.
 
 ## Drive
 
@@ -53,11 +54,11 @@ Everything goes in `$run_dir`: `SETUP-before.md`, `launch.log`, assertion and he
 - **Setup after.** Before cleanup, run `setup-after.sh "$enclave" "$run_dir"`, then fill its Differences section by comparing it with `SETUP-before.md`.
 - **Report.** `REPORT.md` lists each criterion with pass, fail or blocked, and the file that proves it. A criterion whose precondition never happened is blocked; never substitute a weaker check.
 - **Failures.** Save logs, configs and chain state before changing anything. Classify each failure as infrastructure, client compatibility, test error or package regression, and say which in the report.
-- **Review page.** Run `review-page.sh "$run_dir"` after any change to the three Markdown files. It builds and opens `$run_dir/index.html`, which shows them together with the sign-off status from `$run_dir/signoff.md`. Point reviewers at that page.
+- **Review page.** Run `review-page.sh "$run_dir"` after any change to the three Markdown files. It builds and opens `$run_dir/index.html`, which shows them together with the sign-off status from `$run_dir/signoff.md`. The human reviewer writes `signoff.md` (one line: who, when) after reading the page; the skill never writes it. Point reviewers at that page.
 
 ## Cleanup
 
-Remove only what this run created, by the full ID in `resources.md`: `kurtosis enclave rm -f <full-uuid>` for the enclave, `docker rmi <image-id>` for each image `build-arm64.sh` built. Never use `kurtosis clean`, Docker prune or name-prefix deletion; they reach resources other runs own. Mark removed IDs in `resources.md`. The run directory stays.
+Remove only what this run created, by the full ID in `resources.md`: `kurtosis enclave rm -f <full-uuid>` for the enclave, `docker rmi <image-id>` for each image `build-arm64.sh` built. Never use `kurtosis clean`, `kurtosis otel stop`, Docker prune or name-prefix deletion; they reach resources other runs own, and the OTel stack is shared. Mark removed IDs in `resources.md`. The run directory stays.
 
 ## Helpers
 
