@@ -1,0 +1,116 @@
+log-level: 'info'
+beacon-node-addresses:
+  - 'http://cl-1-prysm-geth:3500'
+  - 'http://cl-2-lighthouse-nethermind:4000'
+  - 'http://cl-3-teku-reth:4000'
+  - 'http://cl-4-lodestar-erigon:4000'
+  - 'http://cl-5-nimbus-besu:4000'
+accountmanager:
+  dirk:
+    endpoints:
+      - 'dirk-a-1:8881'
+      - 'dirk-a-2:8881'
+      - 'dirk-a-3:8881'
+    client-cert: 'file:///certs/client.crt'
+    client-key: 'file:///certs/client.key'
+    ca-cert: 'file:///certs/ca.crt'
+    accounts:
+      - 'DistributedWallet/0'
+      - 'DistributedWallet/1'
+      - 'DistributedWallet/2'
+      - 'DistributedWallet/3'
+      - 'DistributedWallet/4'
+      - 'DistributedWallet/5'
+      - 'DistributedWallet/6'
+      - 'DistributedWallet/7'
+      - 'DistributedWallet/8'
+      - 'DistributedWallet/9'
+      - 'DistributedWallet/10'
+      - 'DistributedWallet/11'
+      - 'DistributedWallet/12'
+      - 'DistributedWallet/13'
+      - 'DistributedWallet/14'
+      - 'DistributedWallet/15'
+      - 'DistributedWallet/16'
+      - 'DistributedWallet/17'
+      - 'DistributedWallet/18'
+      - 'DistributedWallet/19'
+      - 'DistributedWallet/20'
+      - 'DistributedWallet/21'
+      - 'DistributedWallet/22'
+      - 'DistributedWallet/23'
+      - 'DistributedWallet/24'
+      - 'DistributedWallet/25'
+      - 'DistributedWallet/26'
+      - 'DistributedWallet/27'
+      - 'DistributedWallet/28'
+      - 'DistributedWallet/29'
+      - 'DistributedWallet/30'
+      - 'DistributedWallet/31'
+      - 'DistributedWallet/32'
+      - 'DistributedWallet/33'
+      - 'DistributedWallet/34'
+      - 'DistributedWallet/35'
+      - 'DistributedWallet/36'
+      - 'DistributedWallet/37'
+      - 'DistributedWallet/38'
+      - 'DistributedWallet/39'
+      - 'DistributedWallet/40'
+      - 'DistributedWallet/41'
+      - 'DistributedWallet/42'
+      - 'DistributedWallet/43'
+      - 'DistributedWallet/44'
+      - 'DistributedWallet/45'
+      - 'DistributedWallet/46'
+      - 'DistributedWallet/47'
+      - 'DistributedWallet/48'
+      - 'DistributedWallet/49'
+      - 'DistributedWallet/50'
+      - 'DistributedWallet/51'
+      - 'DistributedWallet/52'
+      - 'DistributedWallet/53'
+      - 'DistributedWallet/54'
+      - 'DistributedWallet/55'
+      - 'DistributedWallet/56'
+      - 'DistributedWallet/57'
+      - 'DistributedWallet/58'
+      - 'DistributedWallet/59'
+      - 'DistributedWallet/60'
+      - 'DistributedWallet/61'
+      - 'DistributedWallet/62'
+      - 'DistributedWallet/63'
+    timeout: '30s'
+strategies:
+  aggregateattestation:
+    style: 'best'
+  attestationdata:
+    style: 'majority'
+    majority:
+      threshold: 2
+    timeout: '2s'
+  beaconblockheader:
+    style: 'first'
+  beaconblockproposal:
+    style: 'best'
+    timeout: '1.5s'
+  beaconblockroot:
+    style: 'majority'
+  duties:
+    style: 'first'
+  signedbeaconblock:
+    style: 'first'
+  synccommitteecontribution:
+    style: 'best'
+    timeout: '1s'
+submitter:
+  style: 'multinode'
+blockrelay:
+  fallback-fee-recipient: '0x8943545177806ED17B9F23F0a21ee5948eCaa776'
+  fallback-gas-limit: 30000000
+metrics:
+  prometheus:
+    listen-address: '0.0.0.0:8080'
+graffiti:
+  static:
+    value: '4-erigon-lodestar-vouch'
+
