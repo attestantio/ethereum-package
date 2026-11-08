@@ -3,13 +3,12 @@
 # Five EL/CL pairs on Glamsterdam devnet-8 rules, plus a sixth pair that carries
 # the passive Vouch of cluster B. Native VCs hold 384 of 512 validators (75%).
 # Images are the devnet's advertised images pinned by resolve-images.py. Vouch is
-# the first release with Gloas support; stable 1.13.1 has none.
+# a Gloas build: 1.14.0-alpha.1 added Gloas proposals, and stable 1.13.x has none.
 participants:
   - el_type: geth
     el_image: ethpandaops/geth:master-8a8efd3@sha256:8bc7e0659f426a61cc37185177b100af0ab9807dfd512c0ee5113409c75ed7d9
     cl_type: prysm
     cl_image: ethpandaops/prysm-beacon-chain:develop-cd6eed7@sha256:d9e46a7a6e10aa39b08a5fa552fe53071ab36152d4287959c7b744bab4ab0f7c
-    vc_type: prysm
     vc_image: ethpandaops/prysm-validator:develop-7e71942@sha256:8e3f425591bd0e0d8685eb5500844cbd364476509b853068ec34f8d06495b101
     supernode: true
     validator_count: 128
@@ -53,7 +52,8 @@ participants:
     vouch_multiinstance_attester_delay: 250ms
     vouch_multiinstance_proposer_delay: 500ms
 
-  # Cluster B, passive instance. Longer delays, so it signs only when the active one fails.
+  # Cluster B, passive instance. Longer delays, so it normally signs only when the active one
+  # fails; under load both can sign, and Dirk's slashing protection decides.
   - el_type: geth
     el_image: ethpandaops/geth:master-8a8efd3@sha256:8bc7e0659f426a61cc37185177b100af0ab9807dfd512c0ee5113409c75ed7d9
     cl_type: lighthouse
@@ -119,3 +119,4 @@ network_params:
   custody_requirement: 4
   validator_custody_requirement: 8
   min_epochs_for_data_column_sidecars_requests: 4096
+  inclusion_list_due_bps: 6667

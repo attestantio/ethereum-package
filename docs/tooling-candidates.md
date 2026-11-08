@@ -12,6 +12,7 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 | `VOUCH_FIELDS` in `input_parser.star`, `PARTICIPANT_CATEGORIES` in `sanity_check.star` and `default_participant()` list the same Vouch fields | A new field is accepted by one check and rejected by another | Unit test that compares the three lists |
 | Files follow the indentation `.editorconfig` declares (4 spaces for Python) | Reviews argue about style, and a new `.py` file matches neither the rule nor its neighbours | editorconfig-checker in CI |
 | The host ports an args file publishes are free when the run launches | The launch fails after about a minute with `port is already allocated` because another enclave publishes the same range | Check in `setup-before.sh` that compares the args file's `port_publisher` ranges with `docker ps` ports |
+| An assertion script fails closed: an absent field or a failed request is a failure or an error, never a pass | A script compares two empty fields as equal, or reads a failed `curl` as an empty slot, and a broken chain passes | Lint `|| continue` and `|| true` after `curl` and `jq` in `.github/tests/assert-*.sh`, and a stub-server test per script that serves empty fields and HTTP errors |
 
 ## Already enforced
 
@@ -24,3 +25,4 @@ Invariants a tool could enforce. Each row names the invariant, how a violation s
 | `sed` lines in the skill scripts avoid `\s`, `\S`, `\d` and `\w`, which BSD sed on macOS lacks (the Images table came out as raw `grep -n` lines) | `test_skill_scripts.py` |
 | No script or recipe runs `eval "$(cmd)"` without first checking that `cmd` succeeded (a failed `cmd` prints nothing, `eval` returns 0, and a later step writes a blank value) | `test_skill_scripts.py` |
 | Exit codes of `devnet-health.sh` and the records `setup-before.sh` and `setup-after.sh` write, including their failure paths | `test_skill_scripts.py`, against a stub `kurtosis`, `docker` and local beacon and EL servers |
+| `assert-vouch-dirk-five-pair.sh` passes, fails, blocks or errors as its header says: an absent bid field, an HTTP error, a missing metric and a wrong Vouch or Dirk setting do not pass | `test_assert_five_pair.py`, against a stub `kurtosis` and local beacon and metrics servers |

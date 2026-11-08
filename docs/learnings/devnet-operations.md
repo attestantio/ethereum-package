@@ -9,6 +9,9 @@ Justification is skipped while `current_epoch <= 1`. Epoch 2 is the first that c
 - Vouch at info level logs no per-duty results. Prove signing from its metrics, for example `vouch_attestation_process_requests_total{result="succeeded"}` and `vouch_beaconblockproposal_process_requests_total`.
 - `BLOCK_ERROR_ALREADY_KNOWN` in Vouch logs is normal. The multinode submitter sends every block to all beacon nodes, and some already have it from gossip.
 - Static-delay multi-instance with equal attester delays lets the same instance win every race. Give active and passive instances different delays.
+- Lodestar rejects `prepareBeaconProposer` after Gloas with 410. Vouch 1.14.0-alpha.2 logs one "Failed to update proposal preparations" error per epoch, and blocks still land.
+- Envelope submissions fail with `BlockRootUnknown` on beacon nodes that have not seen the block yet, and the multinode submitter reaches the others. It is benign only while the next block still builds on the payload.
+- Proposals Vouch takes from a Lighthouse beacon node can carry Lighthouse's default graffiti.
 
 ## Assertoor
 

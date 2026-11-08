@@ -1,12 +1,13 @@
 # Vouch/Dirk five-pair
 
-A Glamsterdam devnet-8 network that crosses into Gloas at epoch 2, with five different EL/CL pairs and Vouch on two Dirk clusters. It proves Vouch proposes Gloas blocks whose payloads the chain builds on, across every beacon node client, with natives holding 75% of the stake.
+A Glamsterdam devnet-8 network that crosses into Gloas at epoch 2, with five EL/CL pairs that hold validators, a sixth pair for a passive Vouch, and Vouch on two 2-of-3 Dirk clusters. Natives hold 75% of the stake. It proves that each cluster's Vouch proposes Gloas blocks whose payloads the chain builds on, and that Vouch and Dirk run the settings the layout gives them.
 
 ## Sub-features
 
-- `five-pair-gloas`: the chain crosses Gloas at slot 64 and every Vouch Gloas proposal has its payload revealed.
-- `five-pair-cluster-a`: one Vouch on Erigon/Lodestar with its own 2-of-3 Dirk cluster.
-- `five-pair-cluster-b`: an active Vouch on Besu/Nimbus and a passive Vouch on a sixth Geth/Lighthouse pair, sharing a 2-of-3 Dirk cluster with static-delay.
+- `five-pair-gloas`: the chain crosses Gloas at slot 64 and every Vouch Gloas proposal has its payload built on by the next block.
+- `five-pair-cluster-a`: one Vouch on Erigon/Lodestar with its own 2-of-3 Dirk cluster. It uses beacon nodes 1 to 5 and the cluster's Dirk peers, manages all of the cluster's DKG accounts and attests.
+- `five-pair-cluster-b`: an active Vouch on Besu/Nimbus and a passive Vouch on a sixth Geth/Lighthouse pair share a 2-of-3 Dirk cluster under static-delay: 250ms and 500ms on the active, 4s and 2s on the passive. Both use beacon nodes 1 to 5 and manage the cluster's accounts, and the passive attests less than the active.
+- `five-pair-dirk`: each cluster's Dirk peers signed at least twice what its Vouch instances report, because a signature needs two of three peers.
 
 ## How to get to it (user POV)
 
@@ -15,20 +16,25 @@ A Glamsterdam devnet-8 network that crosses into Gloas at epoch 2, with five dif
 
 ## Driving it with kurtosis
 
-Preconditions: a fresh enclave name and about 12 GB of free Docker memory (six EL/CL pairs, six Dirk peers, three Vouch instances). If Docker goes above 85% memory, lower the validator counts and keep natives at 75% or more.
+Preconditions: a fresh enclave name and about 12 GB of free Docker memory (six EL/CL pairs, six Dirk peers, three Vouch instances).
 
 Ready when: the launch exits 0 and `doctor.sh` passes.
 
-Health epoch: 5. Gloas starts at epoch 2, and the first full Gloas epoch (3) finalizes around epoch 5, the first epoch at which `devnet-health.sh` judges finality. Before it, `devnet-health.sh "$enclave" 5` exits 4: a smoke result.
+Health epoch: 5, the first epoch at which `devnet-health.sh` judges finality. Gloas starts at epoch 2.
 
 Steps, between the common Launch/Doctor and Health/Proof steps in [README.md](README.md#common-steps):
 
-- **Assertions.** `.github/tests/assert-vouch-dirk-five-pair.sh "$enclave" > "$run_dir/assert.txt" 2>&1`, from the start of epoch 3, once both clusters have proposed on Gloas; each cluster expects about 4 proposals per epoch. If a cluster has none yet, rerun it after the next epoch. Pass: exit 0 (512 genesis validators, head on Gloas, both clusters proposed Gloas blocks and every payload was revealed). Fail: any other exit.
+- **Assertions.** `.github/tests/assert-vouch-dirk-five-pair.sh "$enclave" > "$run_dir/assert.txt" 2>&1; echo $? > "$run_dir/assert.exit"`, from the start of epoch 3, when each cluster has about 4 Gloas proposals. The last line is `RESULT: PASS`, `FAIL`, `BLOCKED` or `ERROR`; the exit code follows it:
+  - 0, pass: both clusters' DKG validators are in genesis, each Vouch uses its beacon nodes, Dirk peers and delays, each cluster's Gloas proposals have their payloads built on, each Vouch manages its cluster's accounts, the passive attests less than the active, and Dirk signed at least twice what Vouch reports.
+  - 1, fail: a `FAIL` line names the check, and a payload failure names its slot and cluster. Root-cause it on a fresh enclave, because an unbuilt payload stays in every later run's window.
+  - 4, blocked and nothing failed: the head is not on Gloas yet, or a cluster has no Gloas proposal yet, so the metrics were not read. Rerun after the next epoch. From epoch 5 it counts as a failure: a cluster with 1/8 of the validators has no proposal in 96 slots about 3 times in a million.
+  - 2, could not run: a service, port or answer could not be read. Fix the access and rerun on the same enclave.
 
 ## Gotchas
 
-- Vouch 1.14.0-alpha.2 is the first release with Gloas support; it has no arm64 image.
-- Lodestar rejects `prepareBeaconProposer` after Gloas with 410. Vouch 1.14.0-alpha.2 logs one "Failed to update proposal preparations" error per epoch; blocks still land.
-- Envelope submissions fail with `BlockRootUnknown` on beacon nodes that have not seen the block yet. The multinode submitter reaches the others; this is a warning, not a failure.
-- Proposals Vouch takes from a Lighthouse beacon node can carry Lighthouse's default graffiti.
+- Vouch 1.14.0-alpha.2 is a Gloas build: alpha.1 added Gloas proposals, and stable 1.13.x has none. Neither it nor Dirk has an arm64 image; follow the amd64-only step in the README.
+- Natives hold 75% of the stake, so the chain finalizes without Vouch. `devnet-health.sh` and finality prove nothing about Vouch here; the assertions do.
+- The passive Vouch activates for a proposal when it sees no block in time, and then Dirk's slashing protection decides which instance signs. Each peer signs the first request for a slot and denies the second, so the passive's duplicate gets `0 signed, 3 denied` or `1 signed, 2 denied`, and it can win a slot when its requests reach two peers first. The assertions print Dirk's denied proposals and compare nothing about them or about who proposed.
+- `BlockRootUnknown` on an envelope submission is benign only while the next block still builds on the payload. The assertions judge that, not the log.
+- Lodestar's 410 on proposal preparations, `BlockRootUnknown` and Lighthouse's default graffiti are expected noise (`docs/learnings/devnet-operations.md`, Vouch signing).
 - Erigon serves HTTP JSON-RPC on its `ws-rpc` port; the scripts handle it.
