@@ -52,4 +52,4 @@ Each file starts with an H1 and one paragraph on what the fixture proves, then f
 - [Tempo plain](./tempo-plain.md): Vouch and Dirk traces in plain Tempo.
 - [Tempo mTLS](./tempo-mtls.md): Vouch traces in Tempo over mTLS.
 - [Vouch/Dirk certmanager](./vouch-dirk-certmanager.md): two 3-of-5 Dirk clusters, certificate identity and validity metrics.
-- [Vouch/Dirk five-pair](./vouch-dirk-five-pair.md): generated from devnet-8, crosses Gloas, five EL/CL pairs, two Dirk clusters with active/passive Vouch.
+- [Vouch/Dirk five-pair](./vouch-dirk-five-pair.md): generated from devnet-8, crosses Gloas, six EL/CL pairs, a Vouch on Dirk cluster a, and an active and a passive Vouch on cluster b. Manual: CI does not launch it.
