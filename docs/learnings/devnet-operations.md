@@ -13,6 +13,10 @@ Justification is skipped while `current_epoch <= 1`. Epoch 2 is the first that c
 - Envelope submissions fail with `BlockRootUnknown` on beacon nodes that have not seen the block yet, and the multinode submitter reaches the others. It is benign only while the next block still builds on the payload.
 - Proposals Vouch takes from a Lighthouse beacon node can carry Lighthouse's default graffiti.
 
+## Host sleep
+
+A host that sleeps pauses the Docker VM: the chain stops and the clock moves on. In one 23-hour enclave the VM paused 20 times for 3 to 34 minutes. Prysm, Lighthouse and Teku caught up. Lodestar v1.50.0 and Nimbus v26.10.1 fell behind for good (and their ELs, Erigon v3.8.0 and Besu 26.10.0, stopped), and `devnet-health.sh` reported them as diverged. Keep the host awake during a run (for example `caffeinate -i` in another terminal), and do not judge an enclave that paused.
+
 ## Assertoor
 
 - `stability-check` can fail with "context canceled" on a healthy chain; it is an Assertoor timeout.
