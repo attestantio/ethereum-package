@@ -95,8 +95,6 @@ strategies:
     timeout: '1.5s'
   beaconblockroot:
     style: 'majority'
-  duties:
-    style: 'first'
   signedbeaconblock:
     style: 'first'
   synccommitteecontribution:

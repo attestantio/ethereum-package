@@ -17,7 +17,6 @@ from test_skill_scripts import BASH, needs_tools
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".github/tests/assert-vouch-dirk-five-pair.sh"
-REAL_CONFIG_A = (ROOT / ".github/fixtures/testdata/vouch-cluster-a.yml").read_text()  # as a real run rendered it
 FORK_SLOT = 64  # GLOAS_FORK_EPOCH 2 x 32 slots
 BEACON = "cl-2-lighthouse-nethermind"
 VC_A, VC_B, VC_P = "vc-4-erigon-lodestar-vouch", "vc-5-besu-nimbus-vouch", "vc-6-geth-lighthouse-vouch"
@@ -25,6 +24,9 @@ DIRKS = [f"dirk-{c}-{n}" for c in "ab" for n in (1, 2, 3)]
 ATT = 'vouch_attestation_process_requests_total{result="succeeded"}'
 PROP = 'vouch_beaconblockproposal_process_requests_total{result="succeeded"}'
 ACCOUNTS = 'vouch_accountmanager_accounts_total{state="active_ongoing"}'
+REAL_CONFIGS = {  # as a real run rendered them
+    vc: (ROOT / ".github/fixtures/testdata" / name).read_text()
+    for vc, name in ((VC_A, "vouch-cluster-a.yml"), (VC_B, "vouch-cluster-b-active.yml"), (VC_P, "vouch-cluster-b-passive.yml"))}
 
 
 def pubkey(i):
@@ -330,8 +332,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(len(fail_lines(r)), 1, r.stdout)  # one thing broken, one thing reported
         self.assertRegex(r.stdout, rf"FAIL +{service} {what}")
 
-    def test_a_config_a_real_run_rendered_passes(self):
-        r = check(configs={VC_A: REAL_CONFIG_A})
+    def test_the_configs_a_real_run_rendered_pass(self):
+        r = check(configs=REAL_CONFIGS)
         self.assertEqual((r.returncode, r.stdout.splitlines()[-1]), (0, "RESULT: PASS"), r.stdout + r.stderr)
 
     def test_every_check_runs_even_when_another_section_fails(self):
