@@ -10,7 +10,7 @@
 - Vouch ignores unknown `strategies.*` sections, so a misspelled name changes nothing and logs nothing. An unknown `style` falls back to `simple` without a warning. The package checks strategy names and value shapes only.
 - Vouch never read `strategies.duties`. The package no longer renders it.
 - A bare number for a duration (`timeout: 1800`) is read as nanoseconds, 1.8µs. The package requires a unit (`1800ms`).
-- `style: combinedmajority` reads only `combinedmajority.threshold`, not `majority.threshold` (attestantio/vouch#463). Without it Vouch applies no minimum, so the package requires it. Remove that check once every Vouch image the package targets has the fallback from attestantio/vouch#474.
+- `style: combinedmajority` reads only `combinedmajority.threshold`, not `majority.threshold` (attestantio/vouch#463). Without it Vouch applies no minimum, so the package requires it. Vouch's fix (attestantio/vouch#480) only warns and keeps 0 as the default, so remove that check once every Vouch image the package targets rejects a missing or zero threshold.
 
 ## Tracing
 
