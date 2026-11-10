@@ -20,10 +20,12 @@ fixture differs, or if a generated fixture has no layout.
 
 import argparse
 import difflib
+import http.client
 import json
 import pathlib
 import re
 import sys
+import time
 import urllib.request
 
 import yaml
@@ -53,9 +55,16 @@ PEERDAS_KEYS = [
 ]
 
 
-def fetch(url):
-    with urllib.request.urlopen(url, timeout=30) as response:
-        return response.read().decode()
+def fetch(url, attempts=3):
+    # Every PR's CI runs this download, and raw.githubusercontent.com fails now and then, so ride out a blip.
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                return response.read().decode()
+        except (OSError, http.client.HTTPException):
+            if attempt == attempts:
+                raise
+            time.sleep(2 * attempt)
 
 
 def fetch_devnet(source):
