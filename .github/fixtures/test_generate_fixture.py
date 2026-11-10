@@ -1,10 +1,13 @@
 """Offline tests for generate-fixture.py. Run: python3 -m unittest discover -s .github/fixtures"""
 
 import contextlib
+import http.client
 import io
 import pathlib
 import tempfile
 import unittest
+import urllib.error
+from unittest import mock
 
 import yaml
 
@@ -277,6 +280,25 @@ class GenerateTest(unittest.TestCase):
         layout = self.dir / "commented.yaml"
         layout.write_text(LAYOUT.format(mode="mainnet").replace("fixture_source:", "fixture_source:  # pinned devnet"))
         self.assertNotIn("fixture_source", gen.generate(layout, fake_fetch))
+
+
+class FetchTest(unittest.TestCase):
+    def fetch(self, *outcomes):
+        """Run gen.fetch with urlopen returning or raising each outcome in turn. Returns the result or error, the urlopen calls and the sleeps."""
+        with mock.patch.object(gen.urllib.request, "urlopen", side_effect=outcomes) as urlopen, mock.patch.object(gen.time, "sleep") as sleep:
+            try:
+                result = gen.fetch("https://example.test/config.yaml")
+            except (OSError, http.client.HTTPException) as error:
+                result = error
+        return result, urlopen.call_count, [call.args[0] for call in sleep.call_args_list]
+
+    def test_transient_failures_are_retried_with_a_growing_pause(self):
+        outcomes = (urllib.error.URLError("reset"), http.client.IncompleteRead(b"par"), io.BytesIO(b"body"))
+        self.assertEqual(self.fetch(*outcomes), ("body", 3, [2, 4]))
+
+    def test_the_last_error_is_raised_after_three_attempts(self):
+        result, calls, sleeps = self.fetch(*[urllib.error.URLError(f"reset {n}") for n in range(3)])
+        self.assertEqual((str(result.reason), calls, sleeps), ("reset 2", 3, [2, 4]))
 
 
 if __name__ == "__main__":
